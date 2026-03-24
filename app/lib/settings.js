@@ -921,6 +921,14 @@ export async function deleteSettingsNode(id) {
         nodes.filter(n => n.parentId === parentId).forEach(n => collect(n.id));
     };
     collect(id);
+    // 清除被删除节点的所有待执行 embedding 定时器，
+    // 防止定时器回调重新读取并保存含已删除节点的旧数据
+    for (const delId of toDelete) {
+        if (_embeddingTimers[delId]) {
+            clearTimeout(_embeddingTimers[delId]);
+            delete _embeddingTimers[delId];
+        }
+    }
     nodes = nodes.filter(n => !toDelete.has(n.id));
     await saveSettingsNodes(nodes);
     return true;

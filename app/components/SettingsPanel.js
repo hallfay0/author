@@ -618,9 +618,18 @@ export default function SettingsPanel() {
     };
 
     const doDeleteNode = async (id) => {
-        await deleteSettingsNode(id);
-        setNodes(await getSettingsNodes());
+        // 收集要删除的节点 ID（包括所有子节点）
+        const toDelete = new Set();
+        const collect = (parentId) => {
+            toDelete.add(parentId);
+            nodes.filter(n => n.parentId === parentId).forEach(n => collect(n.id));
+        };
+        collect(id);
+        // 乐观更新：直接从 React 状态移除，不重新读取存储
+        setNodes(nodes.filter(n => !toDelete.has(n.id)));
         if (selectedNodeId === id) setSelectedNodeId(null);
+        // 后台持久化删除
+        deleteSettingsNode(id);
     };
 
     const handleRenameNode = async (id, newName) => {

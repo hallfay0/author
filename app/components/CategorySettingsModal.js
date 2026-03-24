@@ -1284,10 +1284,19 @@ export default function CategorySettingsModal() {
             message: `确定要删除「${node.name}」吗？${node.type === 'folder' ? '分类内的所有条目也会被删除。' : ''}`,
             onConfirm: async () => {
                 setDeleteConfirm(null);
-                await deleteSettingsNode(id);
-                const updated = await getSettingsNodes();
+                // 收集要删除的节点 ID（包括所有子节点）
+                const toDelete = new Set();
+                const collect = (parentId) => {
+                    toDelete.add(parentId);
+                    nodes.filter(n => n.parentId === parentId).forEach(n => collect(n.id));
+                };
+                collect(id);
+                // 乐观更新：直接从 React 状态移除，不重新读取存储
+                const updated = nodes.filter(n => !toDelete.has(n.id));
                 setNodes(updated);
                 if (selectedNodeId === id) setSelectedNodeId(null);
+                // 后台持久化删除
+                deleteSettingsNode(id);
                 // 强制浏览器重新计算 hover 状态
                 requestAnimationFrame(() => {
                     document.body.style.pointerEvents = 'none';

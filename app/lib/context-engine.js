@@ -77,9 +77,9 @@ const PRIORITY = {
  * 获取上下文可勾选条目列表（供「📚 参考」Tab 使用） (Async)
  * 返回扁平化数组，每个条目包含 id, group, name, tokens, category
  */
-export async function getContextItems(activeChapterId) {
+export async function getContextItems(activeChapterId, chaptersOverride) {
     const settings = getProjectSettings();
-    const chapters = await getChapters(getActiveWorkId());
+    const chapters = chaptersOverride || await getChapters(getActiveWorkId());
     const currentIndex = chapters.findIndex(ch => ch.id === activeChapterId);
 
     // getSettingsNodes() 已按当前作品过滤

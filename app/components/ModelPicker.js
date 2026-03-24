@@ -254,6 +254,16 @@ export default function ModelPicker({ target = 'editor', onOpenSettings, classNa
                 if (!pc[oldKey].models) pc[oldKey].models = pc[oldKey].model ? [pc[oldKey].model] : [];
             }
             Object.assign(settings.apiConfig, newCfg);
+            // 同步更新 chatApiConfig，确保 AI 助手对话也使用新切换的模型
+            if (settings.chatApiConfig && settings.chatApiConfig.provider) {
+                const chatTools = settings.chatApiConfig.tools || settings.apiConfig?.tools;
+                const chatSearchConfig = settings.chatApiConfig.searchConfig || settings.apiConfig?.searchConfig;
+                settings.chatApiConfig = {
+                    ...newCfg,
+                    ...(chatTools ? { tools: chatTools } : {}),
+                    ...(chatSearchConfig ? { searchConfig: chatSearchConfig } : {}),
+                };
+            }
         }
         settings.apiConfig.providerConfigs = pc;
         saveProjectSettings(settings);

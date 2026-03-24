@@ -233,12 +233,18 @@ export default function Home() {
     loadChaptersForWork(activeWorkId);
   }, [activeWorkId, loadChaptersForWork]);
 
+  // 章节指纹 —— 当章节改名或拖动排序时会变化，触发上下文列表重建
+  const chaptersFingerprint = useMemo(
+    () => (Array.isArray(chapters) ? chapters.map(ch => `${ch.id}:${ch.title}`).join('|') : ''),
+    [chapters]
+  );
+
   // 初始化上下文条目和勾选状态（设定集 + 章节 + 对话历史）
   useEffect(() => {
     if (!activeChapterId) return;
 
     const loadContext = async () => {
-      const baseItems = await getContextItems(activeChapterId);
+      const baseItems = await getContextItems(activeChapterId, chapters);
 
       // 追加对话历史条目 — 逐条生成，供参考面板单独勾选
       const chatItems = chatHistory.map((m, i) => {
@@ -268,7 +274,7 @@ export default function Home() {
     };
 
     loadContext();
-  }, [activeChapterId, settingsVersion, chatHistory.length, chapters.length]);
+  }, [activeChapterId, settingsVersion, chatHistory.length, chaptersFingerprint]);
 
   // 定时自动存档 (每 15 分钟)
   useEffect(() => {
