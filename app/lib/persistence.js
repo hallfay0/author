@@ -145,6 +145,9 @@ export async function persistGet(key) {
  * @param {any} value - 要存储的值
  */
 export async function persistSet(key, value) {
+    if (typeof window !== 'undefined' && window._isAppForcePulling && !window._isForcePullingBypass) {
+        return;
+    }
     if (typeof window === 'undefined') return;
     ensureUserId();
 

@@ -115,9 +115,15 @@ function SyncMenuPortal({ anchorRef, cloudinarySyncStatus, setShowSyncMenu, setS
                             fontFamily: 'monospace', wordBreak: 'break-all',
                             border: '1px solid var(--border-light)'
                         }}>
-                            {cloudinarySyncStatus.keys.map(k => (
-                                <div key={k} style={{ padding: '2px 0' }}>• {k}</div>
-                            ))}
+                            {cloudinarySyncStatus.keys.map(k => {
+                                let label = k;
+                                if (k === 'author-project-settings') label = '全局设置';
+                                else if (k === 'author-works-index') label = '作品库目录';
+                                else if (k === 'author-recent-works') label = '近期使用记录';
+                                else if (k.startsWith('author-settings-nodes-')) label = '作品设定 (' + k.replace('author-settings-nodes-', '') + ')';
+                                else if (k.startsWith('author-chapters-')) label = '全书章节内容 (' + k.replace('author-chapters-', '') + ')';
+                                return <div key={k} style={{ padding: '2px 0' }}>• {label}</div>;
+                            })}
                         </div>
                     </div>
                 )}
@@ -1207,8 +1213,11 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                             const { forcePullFromCloud } = await import('../lib/firestore-sync');
                             const { persistSet } = await import('../lib/persistence');
                             
+                            window._isAppForcePulling = true;
                             const localSet = async (key, value) => {
+                                window._isForcePullingBypass = true;
                                 await persistSet(key, value);
+                                window._isForcePullingBypass = false;
                             };
                             
                             const count = await forcePullFromCloud(localSet);
@@ -1217,6 +1226,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                 window.location.reload();
                             }, 1500);
                         } catch (err) {
+                            window._isAppForcePulling = false;
                             showToast(`拉取失败: ${err.message}`, 'error');
                         }
                     }}

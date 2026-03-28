@@ -135,15 +135,14 @@ export async function firestoreDel(key) {
     const user = getCurrentUser();
     if (!isFirebaseConfigured || !db || !user) return;
 
-    // 移出队列（如果在队列中）
-    _pendingWrites.delete(key);
+    // 不再立即删除，而是加入延迟队列中，跟普通的写入保持同一步调
+    _pendingWrites.set(key, { value: '_AUTHOR_DELETE_' });
 
-    try {
-        const ref = doc(db, 'users', user.uid, COLLECTION_NAME, key);
-        await deleteDoc(ref);
-    } catch (err) {
-        console.warn('[firestore] DEL failed:', key, err.message);
+    // 每次发生写操作，都会重置空闲定时器
+    if (!_isSyncing && !_syncTimer) {
+        startSyncTimer();
     }
+    resetIdleTimer();
 }
 
 // ==================== 批量同步 ====================
@@ -190,10 +189,46 @@ export async function flushSync() {
 
             for (const [key, { value }] of chunk) {
                 const ref = doc(db, 'users', user.uid, COLLECTION_NAME, key);
-                batch.set(ref, {
-                    value,
+                
+                if (value === '_AUTHOR_DELETE_') {
+                    try {
+                        batch.delete(ref);
+                    } catch (batchErr) {
+                        console.error('[firestore] batch.delete failed for key:', key);
+                        throw batchErr;
+                    }
+                    continue;
+                }
+
+                // 深度剔除，防止任何边角情况
+                const deepClean = (obj) => {
+                    if (obj === undefined) return null;
+                    if (obj === null || typeof obj !== 'object') return obj;
+                    if (Array.isArray(obj)) return obj.map(deepClean);
+                    const cleanObj = {};
+                    for (const k in obj) {
+                        const v = deepClean(obj[k]);
+                        if (v !== undefined) cleanObj[k] = v;
+                    }
+                    return cleanObj;
+                };
+
+                const cleanValue = deepClean(value);
+                
+                const payload = {
+                    value: cleanValue,
                     updatedAt: serverTimestamp(),
-                });
+                };
+
+                try {
+                    batch.set(ref, payload);
+                } catch (batchErr) {
+                    console.error('[firestore] batch.set failed for key:', key);
+                    console.error('[firestore] payload:', JSON.stringify(payload, null, 2));
+                    console.error('[firestore] updatedAt type:', typeof payload.updatedAt);
+                    console.error('[firestore] is serverTimestamp undefined?', serverTimestamp() === undefined);
+                    throw batchErr;
+                }
             }
 
             await batch.commit();
@@ -249,6 +284,21 @@ export async function pullAllFromCloud(localGet, localSet) {
                             ((item.content && item.content.trim() !== '') || (item.wordCount > 0) || (item.title && item.title !== '未命名章节'))
                         );
                         return !hasContent;
+                    }
+                    if (key.startsWith('author-settings-nodes')) {
+                        // 初始设定的文件夹不包含任何实质 item，且作品信息（special）也为空
+                        const hasItems = data.some(item => item.type === 'item');
+                        const hasSpecialContent = data.some(node => 
+                            node.type === 'special' && 
+                            (node.content?.title || node.content?.synopsis)
+                        );
+                        return !hasItems && !hasSpecialContent;
+                    }
+                    if (key === 'author-works-index') {
+                        // 只有一个默认的书籍，说明是全新初始化
+                        if (data.length === 1 && data[0].id === 'work-default' && data[0].name === '默认作品') {
+                            return true;
+                        }
                     }
                     return false;
                 }
