@@ -9,13 +9,11 @@ import { exportProject, importProject, importWork, exportWorkAsTxt, exportWorkAs
 import { WRITING_MODES, getAllWorks, getSettingsNodes, addWork, saveSettingsNodes, setActiveWorkId as setActiveWorkIdSetting, getActiveWorkId } from '../lib/settings';
 import { detectConflicts, mergeChapters } from '../lib/chapter-number';
 import { estimateTokens } from '../lib/context-engine';
-import { Settings, Moon, Sun, History, Save, FolderOpen, FileDown, BookOpen, HelpCircle, Github, PanelLeftClose, ListOrdered, Library, Plus, FileText, FileType, BookMarked, FileOutput, Printer, Book, X, MoreHorizontal, ChevronUp, KeyRound, SlidersHorizontal, Eye, Smartphone, Clapperboard, Cloud, CloudOff, RefreshCw, CloudUpload, CloudDownload } from 'lucide-react';
+import { Settings, Moon, Sun, History, Save, FolderOpen, FileDown, BookOpen, HelpCircle, Github, PanelLeftClose, ListOrdered, Library, Plus, FileText, FileType, BookMarked, FileOutput, Printer, Book, X, MoreHorizontal, ChevronUp, KeyRound, SlidersHorizontal, Eye, Smartphone, Clapperboard } from 'lucide-react';
 import Tooltip from './ui/Tooltip';
 import IconButton from './ui/IconButton';
 import SettingsCategoryPanel, { getCategoryIcon, getCategoryColor, getCategoryLabel, getIconByName } from './SettingsCategoryPanel';
 import SettingsCategoryPopover, { getPinnedCategories, savePinnedCategories } from './SettingsCategoryPopover';
-import SyncConfirmModal from './SyncConfirmModal';
-import ExitSyncModal from './ExitSyncModal';
 
 /** 更多操作下拉菜单（Portal 渲染到 body，彻底避免 overflow 裁剪） */
 function MoreMenuPortal({ anchorRef, t, setShowSettings, setShowMoreMenu, onOpenHelp, setShowGitPopup }) {
@@ -67,106 +65,6 @@ function MoreMenuPortal({ anchorRef, t, setShowSettings, setShowMoreMenu, onOpen
     );
 }
 
-/** 云同步下拉菜单（Portal 渲染到 body，根据实际高度动态调整避免被容器裁剪或超出屏幕） */
-function SyncMenuPortal({ anchorRef, cloudinarySyncStatus, setShowSyncMenu, setShowSyncConfirmModal }) {
-    const menuRef = useRef(null);
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => { setMounted(true); }, []);
-
-    useLayoutEffect(() => {
-        const anchor = anchorRef?.current;
-        const menu = menuRef.current;
-        if (!anchor || !menu) return;
-        const rect = anchor.getBoundingClientRect();
-        const menuH = menu.offsetHeight;
-        const vh = window.innerHeight;
-        let top = rect.bottom - menuH; // 默认与按钮底部对齐
-        if (top + menuH > vh - 4) top = vh - menuH - 4; // 如果超出底部，则上移
-        if (top < 4) top = 4; // 如果超顶部，则至少保留 4px
-        menu.style.left = (rect.right + 8) + 'px';
-        menu.style.top = top + 'px';
-    });
-
-    if (!mounted) return null;
-
-    return createPortal(
-        <>
-            <div style={{ position: 'fixed', inset: 0, zIndex: 9990 }} onClick={() => setShowSyncMenu(false)} />
-            <div ref={menuRef} style={{
-                position: 'fixed', minWidth: 220, zIndex: 9991,
-                background: 'var(--bg-card)', border: '1px solid var(--border-light)',
-                borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', padding: 4,
-            }}>
-                <div style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500, color: 'var(--text-color)', borderBottom: '1px solid var(--border-light)', marginBottom: 4 }}>
-                    云同步状态
-                </div>
-                <div style={{ padding: '4px 12px', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                    {cloudinarySyncStatus?.syncing ? '正在同步中...'
-                    : cloudinarySyncStatus?.pending > 0 ? `有 ${cloudinarySyncStatus.pending} 项更改等待同步`
-                    : '更改已同步至云端'}
-                </div>
-                {cloudinarySyncStatus?.pending > 0 && (
-                    <div style={{ padding: '0 8px', marginBottom: 8 }}>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>待同步队列：</div>
-                        <div style={{
-                            maxHeight: 120, overflowY: 'auto', 
-                            background: 'var(--bg-base)', borderRadius: 4, 
-                            padding: '6px', fontSize: 11, color: 'var(--text-secondary)',
-                            fontFamily: 'monospace', wordBreak: 'break-all',
-                            border: '1px solid var(--border-light)'
-                        }}>
-                            {cloudinarySyncStatus.keys.map(k => {
-                                let label = k;
-                                if (k === 'author-project-settings') label = '全局设置';
-                                else if (k === 'author-works-index') label = '作品库目录';
-                                else if (k === 'author-recent-works') label = '近期使用记录';
-                                else if (k.startsWith('author-settings-nodes-')) label = '作品设定 (' + k.replace('author-settings-nodes-', '') + ')';
-                                else if (k.startsWith('author-chapters-')) label = '全书章节内容 (' + k.replace('author-chapters-', '') + ')';
-                                return <div key={k} style={{ padding: '2px 0' }}>• {label}</div>;
-                            })}
-                        </div>
-                    </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 4px', marginTop: 4 }}>
-                    <button 
-                        className="btn btn-secondary" 
-                        style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px 0' }}
-                        onClick={async () => {
-                            setShowSyncMenu(false);
-                            try {
-                                const { flushSync } = await import('../lib/firestore-sync');
-                                await flushSync();
-                            } catch {}
-                        }}
-                        disabled={cloudinarySyncStatus?.syncing}
-                    >
-                        {cloudinarySyncStatus?.syncing ? (
-                            <RefreshCw size={14} className="spin" style={{ marginRight: 6 }} />
-                        ) : (
-                            <CloudUpload size={14} style={{ marginRight: 6 }} />
-                        )}
-                        同步到云端
-                    </button>
-
-                    <button 
-                        className="btn" 
-                        style={{ width: '100%', justifyContent: 'center', fontSize: 12, padding: '6px 0', background: 'transparent', border: '1px solid var(--border-light)', color: '#ef4444' }}
-                        onClick={() => {
-                            setShowSyncMenu(false);
-                            setShowSyncConfirmModal(true);
-                        }}
-                        disabled={cloudinarySyncStatus?.syncing}
-                    >
-                        <CloudDownload size={14} style={{ marginRight: 6 }} />
-                        从云端同步
-                    </button>
-                </div>
-            </div>
-        </>,
-        document.body
-    );
-}
-
 export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
     const {
         chapters, addChapter, setChapters, updateChapter: updateChapterStore,
@@ -194,10 +92,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
     const [conflictModal, setConflictModal] = useState(null);
     const [showGitPopup, setShowGitPopup] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false); // "更多操作" 下拉菜单
-    const [showSyncMenu, setShowSyncMenu] = useState(false); // 云同步下拉菜单
-    const [showSyncConfirmModal, setShowSyncConfirmModal] = useState(false); // 从云端同步确认弹窗
     const moreMenuAnchorRef = useRef(null);
-    const syncMenuAnchorRef = useRef(null);
     const [activeNavTab, setActiveNavTab] = useState('chapters'); // 'chapters' | 'character' | 'location' | 'world' | 'object' | 'plot' | 'rules'
     const [showCategoryPopover, setShowCategoryPopover] = useState(false);
     const categoryPopoverAnchorRef = useRef(null);
@@ -216,27 +111,6 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
     const [dragOverPos, setDragOverPos] = useState(null); // 'top' | 'bottom'
     const [activeVolumeId, setActiveVolumeId] = useState(null); // 当前选中的分卷
     const { t } = useI18n();
-
-    // ---- 云同步状态（侧栏图标指示） ----
-    const [cloudAuthUser, setCloudAuthUser] = useState(null);
-    const [cloudSyncStatus, setCloudSyncStatus] = useState(null);
-    const [firebaseAvailable, setFirebaseAvailable] = useState(false);
-    useEffect(() => {
-        let unmounted = false;
-        (async () => {
-            try {
-                const { isFirebaseConfigured } = await import('../lib/firebase');
-                if (!isFirebaseConfigured || unmounted) return;
-                setFirebaseAvailable(true);
-                const { onAuthChange, initAuth } = await import('../lib/auth');
-                const { onSyncStatusChange } = await import('../lib/firestore-sync');
-                initAuth();
-                onAuthChange(user => { if (!unmounted) setCloudAuthUser(user); });
-                onSyncStatusChange(status => { if (!unmounted) setCloudSyncStatus(status); });
-            } catch { /* Firebase 未配置 */ }
-        })();
-        return () => { unmounted = true; };
-    }, []);
 
     // 加载分类自定义图标（当 settingsVersion 变化时刷新）
     useEffect(() => {
@@ -832,53 +706,7 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                                 document.body
                             )}
                         </div>
-                        
-                        {/* 云同步快捷入口 */}
-                        <div ref={syncMenuAnchorRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
-                            <IconButton
-                                id="tour-sidebar-sync"
-                                icon={!cloudAuthUser ? <CloudOff size={18} />
-                                    : cloudSyncStatus?.syncing ? <RefreshCw size={18} className="spin" />
-                                    : <Cloud size={18} />}
-                                label={cloudAuthUser
-                                    ? (cloudSyncStatus?.syncing ? '同步中...'
-                                        : cloudSyncStatus?.pending > 0 ? `${cloudSyncStatus.pending} 项待同步`
-                                        : cloudSyncStatus?.idle ? '自动同步已暂停'
-                                        : cloudSyncStatus?.lastSync ? `已同步 · ${new Date(cloudSyncStatus.lastSync).toLocaleTimeString()}`
-                                        : '云同步')
-                                    : (!firebaseAvailable && !(typeof window !== 'undefined' && window.electron) ? (t('settings.syncGuide') || '云同步指南') : '点击登录，开启云同步')}
-                                text={sidebarOpen ? '同步' : undefined}
-                                tooltipSide="right"
-                                onClick={async () => {
-                                    if (!firebaseAvailable) {
-                                        const isElectron = typeof window !== 'undefined' && window.electron;
-                                        if (isElectron) {
-                                            useAppStore.getState().setShowLoginModal(true);
-                                        } else {
-                                            useAppStore.getState().setShowSyncGuideModal(true);
-                                        }
-                                        return;
-                                    }
 
-                                    if (!cloudAuthUser) {
-                                        useAppStore.getState().setShowLoginModal(true);
-                                        return;
-                                    }
-                                    // 已登录：点击展开状态面板
-                                    setShowSyncMenu(!showSyncMenu);
-                                }}
-                                className={`nav-item${cloudAuthUser ? ' nav-cloud-active' : ''}`}
-                            />
-                            {showSyncMenu && (
-                                <SyncMenuPortal 
-                                    anchorRef={syncMenuAnchorRef} 
-                                    cloudinarySyncStatus={cloudSyncStatus} 
-                                    setShowSyncMenu={setShowSyncMenu} 
-                                    setShowSyncConfirmModal={setShowSyncConfirmModal} 
-                                />
-                            )}
-                        </div>
-                        
                         {/* 更多操作下拉（仅保留帮助和社区） */}
                         <div ref={moreMenuAnchorRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                             <IconButton id="tour-settings" icon={<Settings size={18} />} label={showMoreMenu ? '' : (t('sidebar.moreActions') || '更多操作')} text={sidebarOpen ? (t('sidebar.navMore') || '更多') : undefined} tooltipSide="right" onClick={() => setShowMoreMenu(!showMoreMenu)} className="nav-item" />
@@ -1214,35 +1042,6 @@ export default function Sidebar({ onOpenHelp, onToggle, editorRef, pushMode }) {
                         showToast(t('sidebar.exportedAll'), 'success');
                     }}
                     t={t}
-                />
-            )}
-            <ExitSyncModal />
-            {showSyncConfirmModal && (
-                <SyncConfirmModal 
-                    isOpen={showSyncConfirmModal} 
-                    onClose={() => setShowSyncConfirmModal(false)} 
-                    onConfirm={async () => {
-                        try {
-                            const { forcePullFromCloud } = await import('../lib/firestore-sync');
-                            const { persistSet } = await import('../lib/persistence');
-                            
-                            window._isAppForcePulling = true;
-                            const localSet = async (key, value) => {
-                                window._isForcePullingBypass = true;
-                                await persistSet(key, value);
-                                window._isForcePullingBypass = false;
-                            };
-                            
-                            const count = await forcePullFromCloud(localSet);
-                            showToast(`成功覆盖了 ${count} 项本地数据，即将刷新以应用更改...`, 'success');
-                            setTimeout(() => {
-                                window.location.reload();
-                            }, 1500);
-                        } catch (err) {
-                            window._isAppForcePulling = false;
-                            showToast(`拉取失败: ${err.message}`, 'error');
-                        }
-                    }}
                 />
             )}
         </>

@@ -419,6 +419,13 @@ export default function AiSidebar({ onInsertText }) {
         }
     }, [activeTab, open]);
 
+    // 流式生成结束后自动聚焦输入框
+    useEffect(() => {
+        if (!chatStreaming && activeTab === 'chat' && open) {
+            setTimeout(() => inputRef.current?.focus(), 50);
+        }
+    }, [chatStreaming, activeTab, open]);
+
     // 新消息自动加入 checkedHistory（仅追加，不全量重置）
     useEffect(() => {
         if (chatHistory.length === 0) {
@@ -597,7 +604,9 @@ export default function AiSidebar({ onInsertText }) {
                     : (['claude', 'custom-claude'].includes(apiConfig?.provider) || apiConfig?.apiFormat === 'anthropic') ? '/api/ai/claude'
                         : '/api/ai';
 
-            const context = await buildContext(activeChapterId, text, contextSelection.size > 0 ? contextSelection : null);
+            // 直接从 store 读取最新的 contextSelection，避免闭包捕获旧值
+            const latestSelection = useAppStore.getState().contextSelection;
+            const context = await buildContext(activeChapterId, text, latestSelection);
             const systemPrompt = compileSystemPrompt(context, 'chat');
             const historyForApi = selectedHistory.map(m => `${m.role === 'user' ? t('aiSidebar.roleYou') : t('aiSidebar.roleAi')}: ${m.content}`).join('\n');
             const userPrompt = historyForApi ? `${historyForApi}\n${t('aiSidebar.roleYou')}: ${text}` : text;
@@ -684,7 +693,7 @@ export default function AiSidebar({ onInsertText }) {
             abortRef.current = null;
             setChatStreaming(false);
         }
-    }, [activeChapterId, contextSelection, streamResponse, setSessionStore, setChatStreaming]);
+    }, [activeChapterId, streamResponse, setSessionStore, setChatStreaming]);
 
     const onRegenerate = useCallback(async (aiMsgId) => {
         if (chatStreaming) return;
@@ -714,7 +723,8 @@ export default function AiSidebar({ onInsertText }) {
                     : (['claude', 'custom-claude'].includes(apiConfig?.provider) || apiConfig?.apiFormat === 'anthropic') ? '/api/ai/claude'
                         : '/api/ai';
 
-            const context = await buildContext(activeChapterId, userMsg.content, contextSelection.size > 0 ? contextSelection : null);
+            const latestSelection2 = useAppStore.getState().contextSelection;
+            const context = await buildContext(activeChapterId, userMsg.content, latestSelection2);
             const systemPrompt = compileSystemPrompt(context, 'chat');
             const historyForApi = priorHistory
                 .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -781,7 +791,7 @@ export default function AiSidebar({ onInsertText }) {
             abortRef.current = null;
             setChatStreaming(false);
         }
-    }, [chatHistory, chatStreaming, activeChapterId, contextSelection, streamResponse, setSessionStore, setChatStreaming]);
+    }, [chatHistory, chatStreaming, activeChapterId, streamResponse, setSessionStore, setChatStreaming]);
 
     const onApplySettingsAction = useCallback(async (action, actionKey) => {
         try {

@@ -647,6 +647,7 @@ export default function SettingsPanel() {
         });
         setNodes(await getSettingsNodes());
         setSelectedNodeId(newNode.id);
+        incrementSettingsVersion();
     };
 
     const handleDeleteNode = async (id) => {
@@ -678,11 +679,13 @@ export default function SettingsPanel() {
         if (selectedNodeId === id) setSelectedNodeId(null);
         // 后台持久化删除
         deleteSettingsNode(id);
+        incrementSettingsVersion();
     };
 
     const handleRenameNode = async (id, newName) => {
         await updateSettingsNode(id, { name: newName });
         setNodes(await getSettingsNodes());
+        incrementSettingsVersion();
     };
 
     const handleToggleEnabled = async (id) => {
@@ -691,6 +694,7 @@ export default function SettingsPanel() {
         const newEnabled = node.enabled === false ? true : false;
         await updateSettingsNode(id, { enabled: newEnabled });
         setNodes(prev => prev.map(n => n.id === id ? { ...n, enabled: newEnabled } : n));
+        incrementSettingsVersion();
     };
 
     const handleUpdateNode = (id, updates) => {
@@ -699,6 +703,7 @@ export default function SettingsPanel() {
         setNodes(updatedNodes);
         // 后台持久化（传入当前节点，避免重新读取 API）
         updateSettingsNode(id, updates, updatedNodes);
+        incrementSettingsVersion();
     };
 
     const selectedNode = visibleNodes.find(n => n.id === selectedNodeId);
@@ -1294,120 +1299,14 @@ export default function SettingsPanel() {
 }
 
 export const PROVIDERS = [
-    // === 国内供应商 ===
-    { key: 'zhipu', label: '智谱AI (GLM)', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4-flash', 'glm-4-plus', 'glm-4-long', 'glm-4'] },
-    { key: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', models: ['deepseek-chat', 'deepseek-reasoner'] },
-    { key: 'bailian', label: '阿里云百炼 (千问)', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', anthropicBaseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic', models: ['qwen3.5-plus', 'qwen3-max'], supportedFormats: ['openai', 'anthropic'], defaultFormat: 'openai', allowCustomModel: true },
-    { key: 'volcengine', label: '火山引擎 (豆包)', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', models: [], hint: '需在火山引擎控制台创建推理接入点，填入 endpoint_id 作为模型名' },
-    { key: 'moonshot', label: 'Moonshot (Kimi)', baseUrl: 'https://api.moonshot.cn/v1', models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'] },
-    { key: 'stepfun', label: '阶跃星辰 (Step)', baseUrl: 'https://api.stepfun.com/v1', models: ['step-2-16k', 'step-1-8k', 'step-1-32k', 'step-1-128k'] },
-    { key: 'yi', label: '零一万物 (Yi)', baseUrl: 'https://api.lingyiwanwu.com/v1', models: ['yi-lightning', 'yi-large', 'yi-medium', 'yi-spark'] },
-    { key: 'baichuan', label: '百川 (Baichuan)', baseUrl: 'https://api.baichuan-ai.com/v1', models: ['Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k'] },
-    { key: 'hunyuan', label: '腾讯混元', baseUrl: 'https://api.hunyuan.cloud.tencent.com/v1', models: ['hunyuan-turbo', 'hunyuan-pro', 'hunyuan-standard', 'hunyuan-lite'] },
-    { key: 'baidu', label: '百度文心', baseUrl: 'https://qianfan.baidubce.com/v2', models: ['ernie-4.0-turbo-8k', 'ernie-4.0-8k', 'ernie-3.5-8k', 'ernie-speed-8k'] },
-    { key: 'minimax', label: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1', anthropicBaseUrl: 'https://api.minimaxi.com/anthropic', models: ['MiniMax-M2.5', 'MiniMax-M2.1', 'MiniMax-M2.5-highspeed'], supportedFormats: ['openai', 'anthropic'], defaultFormat: 'openai', allowCustomModel: true },
-    { key: 'siliconflow', label: 'SiliconFlow (硅基流动)', baseUrl: 'https://api.siliconflow.cn/v1', models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct', 'THUDM/glm-4-9b-chat'] },
-    // === 国际供应商 ===
-    { key: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o3-mini'] },
-    { key: 'claude', label: 'Claude (Anthropic)', baseUrl: 'https://api.anthropic.com', models: ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022'], apiFormat: 'anthropic' },
-    { key: 'gemini', label: 'Gemini (OpenAI兼容)', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'] },
-    { key: 'gemini-native', label: 'Gemini（原生格式）', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'] },
-    { key: 'openai-responses', label: 'OpenAI Responses', baseUrl: 'https://api.openai.com/v1', models: [] },
-    { key: 'groq', label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
-    { key: 'mistral', label: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'open-mistral-nemo'] },
-    { key: 'cohere', label: 'Cohere', baseUrl: 'https://api.cohere.com/v2', models: ['command-r-plus', 'command-r', 'command-light'] },
-    { key: 'together', label: 'Together AI', baseUrl: 'https://api.together.xyz/v1', models: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'Qwen/Qwen2.5-72B-Instruct-Turbo', 'deepseek-ai/DeepSeek-R1'] },
-    { key: 'perplexity', label: 'Perplexity', baseUrl: 'https://api.perplexity.ai', models: ['sonar-pro', 'sonar', 'sonar-reasoning-pro', 'sonar-reasoning'] },
-    { key: 'xai', label: 'xAI (Grok)', baseUrl: 'https://api.x.ai/v1', models: ['grok-3', 'grok-3-mini', 'grok-2'] },
-    { key: 'cerebras', label: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', models: ['llama-3.3-70b', 'llama-3.1-8b'] },
-    { key: 'github', label: 'GitHub Models', baseUrl: 'https://models.inference.ai.azure.com', models: ['gpt-4o', 'gpt-4o-mini', 'Phi-3.5-MoE-instruct'] },
-    // === 聚合/转发 ===
-    { key: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', models: ['google/gemini-2.5-flash-preview', 'anthropic/claude-sonnet-4', 'openai/gpt-4o', 'deepseek/deepseek-chat-v3-0324', 'meta-llama/llama-4-maverick'] },
-    // === 自定义 ===
-    { key: 'custom', label: '自定义 (OpenAI兼容)', baseUrl: '', models: [] },
-    { key: 'custom-gemini', label: '自定义 (Gemini格式)', baseUrl: '', models: [] },
-    { key: 'custom-claude', label: '自定义 (Claude格式)', baseUrl: '', models: [] },
+    { key: 'custom', label: 'OpenAI 兼容', baseUrl: '', models: [] },
+    { key: 'custom-gemini', label: 'Gemini 格式', baseUrl: '', models: [] },
+    { key: 'custom-claude', label: 'Claude 格式', baseUrl: '', models: [] },
 ];
 
 function PreferencesForm() {
-    const { language, setLanguage, visualTheme, setVisualTheme, sidebarPushMode, setSidebarPushMode, aiSidebarPushMode, setAiSidebarPushMode, setShowSyncGuideModal } = useAppStore();
+    const { language, setLanguage, visualTheme, setVisualTheme, sidebarPushMode, setSidebarPushMode, aiSidebarPushMode, setAiSidebarPushMode } = useAppStore();
     const { t } = useI18n();
-
-    // ---- Firebase 账户 ----
-    const [authUser, setAuthUser] = useState(null);
-    const [authLoading, setAuthLoading] = useState(false);
-    const [authError, setAuthError] = useState('');
-    const [authEmail, setAuthEmail] = useState('');
-    const [authPassword, setAuthPassword] = useState('');
-    const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-    const [syncStatus, setSyncStatus] = useState(null);
-    const [firebaseAvailable, setFirebaseAvailable] = useState(false);
-
-    useEffect(() => {
-        // 动态加载 Firebase 模块（避免未配置时报错）
-        (async () => {
-            try {
-                const { isFirebaseConfigured } = await import('../lib/firebase');
-                if (!isFirebaseConfigured) return;
-                setFirebaseAvailable(true);
-                const { onAuthChange, initAuth } = await import('../lib/auth');
-                const { onSyncStatusChange } = await import('../lib/firestore-sync');
-                initAuth();
-                onAuthChange(user => setAuthUser(user));
-                onSyncStatusChange(status => setSyncStatus(status));
-            } catch { /* Firebase 未配置，忽略 */ }
-        })();
-    }, []);
-
-    const handleEmailAuth = async () => {
-        setAuthLoading(true);
-        setAuthError('');
-        try {
-            const auth = await import('../lib/auth');
-            if (authMode === 'register') {
-                await auth.signUpWithEmail(authEmail, authPassword);
-            } else {
-                await auth.signInWithEmail(authEmail, authPassword);
-            }
-            // 登录成功后从云端拉取数据
-            const { syncFromCloud } = await import('../lib/persistence');
-            const merged = await syncFromCloud();
-            if (merged > 0) {
-                window.location.reload(); // 数据合并后刷新
-            }
-        } catch (err) {
-            setAuthError(err.message || '操作失败');
-        } finally {
-            setAuthLoading(false);
-        }
-    };
-
-    const handleGoogleAuth = async () => {
-        setAuthLoading(true);
-        setAuthError('');
-        try {
-            const auth = await import('../lib/auth');
-            await auth.signInWithGoogle();
-            const { syncFromCloud } = await import('../lib/persistence');
-            const merged = await syncFromCloud();
-            if (merged > 0) window.location.reload();
-        } catch (err) {
-            setAuthError(err.message || 'Google 登录失败');
-        } finally {
-            setAuthLoading(false);
-        }
-    };
-
-    const handleSignOut = async () => {
-        try {
-            const { stopCloudSync } = await import('../lib/persistence');
-            await stopCloudSync();
-            const auth = await import('../lib/auth');
-            await auth.signOut();
-        } catch (err) {
-            console.error('Sign out error:', err);
-        }
-    };
 
     // ---- 自定义提示词 ----
     const [customPrompt, setCustomPrompt] = useState('');
@@ -1457,200 +1356,6 @@ function PreferencesForm() {
                 {t('preferences.intro')}
             </p>
 
-            {/* ===== 云同步账户 ===== */}
-            <div style={{ marginBottom: 28, padding: '20px 24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-light)', background: 'var(--bg-secondary)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                    <Cloud size={16} style={{ color: 'var(--accent)' }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>云同步</span>
-                    {firebaseAvailable && authUser && (
-                        <span style={{
-                            fontSize: 11, padding: '2px 8px', borderRadius: 20,
-                            background: 'rgba(34,197,94,0.1)', color: '#22c55e', fontWeight: 500,
-                            marginLeft: 'auto',
-                        }}>
-                            <CheckCircle2 size={12} style={{ marginRight: 4, verticalAlign: -1 }} />
-                            已连接
-                        </span>
-                    )}
-                </div>
-
-                {!firebaseAvailable ? (
-                    /* 未配置 Firebase（本地离线模式） */
-                    <div style={{
-                        padding: '16px 20px', borderRadius: 'var(--radius-md)',
-                        background: 'var(--bg-primary)', border: '1px solid var(--border-light)',
-                        display: 'flex', flexDirection: 'column', gap: 12,
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                            <div style={{ padding: 8, background: 'var(--bg-secondary)', borderRadius: '50%', color: 'var(--text-muted)' }}>
-                                <CloudOff size={20} />
-                            </div>
-                            <div>
-                                <h4 style={{ margin: '0 0 6px 0', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>本地离线模式</h4>
-                                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                    当前未配置云同步服务。您的所有数据都安全地保存在浏览器本地，不会上传到任何服务器。
-                                    配置云同步后，可开启多设备之间的自动同步功能。
-                                </p>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                            <button
-                                onClick={() => setShowSyncGuideModal(true)}
-                                style={{
-                                    padding: '6px 14px', fontSize: 12, fontWeight: 500,
-                                    background: 'var(--accent)', color: '#fff', border: 'none',
-                                    borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                                    transition: 'all 0.2s', boxShadow: '0 2px 8px var(--accent-glow)'
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                            >
-                                了解如何开启云同步
-                            </button>
-                        </div>
-                    </div>
-                ) : authUser ? (
-                    /* 已登录状态 */
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                {authUser.photoURL ? (
-                                    <img src={authUser.photoURL} alt="" style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid var(--border-light)' }} />
-                                ) : (
-                                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', fontWeight: 700, fontSize: 15, border: '2px solid var(--border-light)' }}>
-                                        {(authUser.email || '?')[0].toUpperCase()}
-                                    </div>
-                                )}
-                                <div>
-                                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                        {authUser.displayName || authUser.email}
-                                    </div>
-                                    {authUser.displayName && (
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{authUser.email}</div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* 同步状态 */}
-                            {syncStatus && (
-                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, padding: '6px 10px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)' }}>
-                                    {syncStatus.syncing ? (
-                                        <><RefreshCw size={11} style={{ marginRight: 4, animation: 'spin 1s linear infinite' }} />正在同步...</>
-                                    ) : syncStatus.pending > 0 ? (
-                                        <>{syncStatus.pending} 项待同步</>
-                                    ) : syncStatus.lastSync ? (
-                                        <><CheckCircle2 size={11} style={{ marginRight: 4, color: '#22c55e' }} />上次同步: {new Date(syncStatus.lastSync).toLocaleTimeString()}</>
-                                    ) : null}
-                                    {syncStatus.error && (
-                                        <span style={{ color: '#ef4444', marginLeft: 8 }}>同步失败: {syncStatus.error}</span>
-                                    )}
-                                </div>
-                            )}
-
-                            <button
-                                onClick={handleSignOut}
-                                style={{
-                                    padding: '6px 16px', fontSize: 12, border: '1px solid var(--border-light)',
-                                    borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer',
-                                    color: 'var(--text-muted)', transition: 'all 0.15s',
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
-                            >
-                                退出登录
-                            </button>
-                        </div>
-                    ) : (
-                        /* 未登录状态 */
-                        <div>
-                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14, lineHeight: 1.5 }}>
-                                登录后自动同步作品到云端，支持多设备访问。未登录时数据仅保存在本地。
-                            </p>
-
-                            {/* 邮箱/密码 */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                                <input
-                                    type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
-                                    placeholder="邮箱" autoComplete="email"
-                                    style={{
-                                        padding: '8px 12px', border: '1px solid var(--border-light)',
-                                        borderRadius: 'var(--radius-sm)', background: 'var(--bg-primary)',
-                                        color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                                    }}
-                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
-                                />
-                                <input
-                                    type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                                    placeholder="密码（至少6位）" autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                                    onKeyDown={e => { if (e.key === 'Enter') handleEmailAuth(); }}
-                                    style={{
-                                        padding: '8px 12px', border: '1px solid var(--border-light)',
-                                        borderRadius: 'var(--radius-sm)', background: 'var(--bg-primary)',
-                                        color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-                                    }}
-                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border-light)'}
-                                />
-                            </div>
-
-                            {authError && (
-                                <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 8, padding: '6px 10px', background: 'rgba(239,68,68,0.06)', borderRadius: 'var(--radius-sm)' }}>
-                                    <XCircle size={12} style={{ marginRight: 4, verticalAlign: -1 }} />{authError}
-                                </div>
-                            )}
-
-                            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                                <button
-                                    onClick={handleEmailAuth}
-                                    disabled={authLoading || !authEmail || !authPassword}
-                                    style={{
-                                        flex: 1, padding: '8px 16px', fontSize: 13, fontWeight: 600,
-                                        border: 'none', borderRadius: 'var(--radius-sm)',
-                                        background: 'var(--accent)', color: '#fff', cursor: 'pointer',
-                                        opacity: (authLoading || !authEmail || !authPassword) ? 0.5 : 1,
-                                        transition: 'all 0.15s',
-                                    }}
-                                >
-                                    {authLoading ? '处理中...' : authMode === 'register' ? '注册' : '登录'}
-                                </button>
-                                <button
-                                    onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }}
-                                    style={{
-                                        padding: '8px 12px', fontSize: 12, border: '1px solid var(--border-light)',
-                                        borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer',
-                                        color: 'var(--text-muted)', transition: 'all 0.15s',
-                                    }}
-                                >
-                                    {authMode === 'login' ? '没有账号？注册' : '已有账号？登录'}
-                                </button>
-                            </div>
-
-                            {/* 分隔线 */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '12px 0' }}>
-                                <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>或</span>
-                                <div style={{ flex: 1, height: 1, background: 'var(--border-light)' }} />
-                            </div>
-
-                            {/* Google 登录 */}
-                            <button
-                                onClick={handleGoogleAuth}
-                                disabled={authLoading}
-                                style={{
-                                    width: '100%', padding: '8px 16px', fontSize: 13, fontWeight: 500,
-                                    border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)',
-                                    background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                                    transition: 'all 0.15s',
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-primary)'}
-                            >
-                                <Globe2 size={15} /> 使用 Google 账号登录
-                            </button>
-                        </div>
-                    )}
-                </div>
 
             {/* 写作模式选择器 */}
             <div style={{ marginBottom: 28 }}>
@@ -1850,10 +1555,38 @@ function ApiConfigForm({ data, onChange }) {
     const [showEmbedModelModal, setShowEmbedModelModal] = useState(false);
     const [embedModelSearch, setEmbedModelSearch] = useState('');
     const [embedProviderSearch, setEmbedProviderSearch] = useState('');
-    const [showAddInstance, setShowAddInstance] = useState(null); // providerType key or null
+    const [showAddInstance, setShowAddInstance] = useState(false);
     const [newInstanceName, setNewInstanceName] = useState('');
+    const [newInstanceFormat, setNewInstanceFormat] = useState('custom');
+    const [confirmDeleteKey, setConfirmDeleteKey] = useState(null); // 待确认删除的实例 key
     const [editingModelParams, setEditingModelParams] = useState(null); // model id being edited
     const { t } = useI18n();
+
+    // 删除 API 实例（直接操作 React state，避免 localStorage 不同步问题）
+    const handleDeleteInstance = (instKey) => {
+        const configs = { ...(data.providerConfigs || {}) };
+        delete configs[instKey];
+        const remaining = Object.keys(configs);
+        const newData = { ...data, providerConfigs: configs };
+        // 如果删除的是当前选中的，切到第一个或清空
+        if (data.provider === instKey) {
+            if (remaining.length > 0) {
+                const first = remaining[0];
+                const cfg = configs[first] || {};
+                newData.provider = first;
+                newData.apiKey = cfg.apiKey || '';
+                newData.baseUrl = cfg.baseUrl || '';
+                newData.model = cfg.model || '';
+            } else {
+                newData.provider = 'custom';
+                newData.apiKey = '';
+                newData.baseUrl = '';
+                newData.model = '';
+            }
+        }
+        onChange(newData);
+        setConfirmDeleteKey(null);
+    };
 
     // 根据 provider 和 apiFormat 获取正确的 baseUrl
     const getBaseUrl = (provider, apiFormat) => {
@@ -1893,46 +1626,39 @@ function ApiConfigForm({ data, onChange }) {
     const handleDeleteProfile = (id) => { persistProfiles(savedProfiles.filter(p => p.id !== id)); };
 
     const handleProviderChange = (providerKey) => {
-        // 对于实例 key，通过 providerType 查找预设定义
+        // 对于实例 key，通过 providerType 查找格式定义
         const existingCfg = data.providerConfigs?.[providerKey];
         const providerType = existingCfg?.providerType || providerKey;
-        const provider = PROVIDERS.find(p => p.key === providerKey) || PROVIDERS.find(p => p.key === providerType);
-        if (!provider) return;
+        const provider = PROVIDERS.find(p => p.key === providerKey) || PROVIDERS.find(p => p.key === providerType) || PROVIDERS[0];
 
-        // 1. 保存当前供应商配置到 providerConfigs
+        // 1. 保存当前 API 配置到 providerConfigs
         const configs = { ...(data.providerConfigs || {}) };
-        if (data.provider) {
-            const curType = configs[data.provider]?.providerType || data.provider;
+        if (data.provider && configs[data.provider]) {
             configs[data.provider] = {
                 ...configs[data.provider],
                 apiKey: data.apiKey || '',
                 baseUrl: data.baseUrl || '',
                 model: data.model || '',
                 apiFormat: data.apiFormat || '',
-                models: data.providerConfigs?.[data.provider]?.models || (data.model ? [data.model] : []),
-                providerType: curType,
+                models: configs[data.provider]?.models || (data.model ? [data.model] : []),
             };
         }
 
-        // 2. 从 providerConfigs 加载目标供应商已保存的配置
+        // 2. 从 providerConfigs 加载目标 API 的配置
         const saved = configs[providerKey] || {};
-        const defaultFormat = provider.defaultFormat || 'openai';
-        const isCustomTarget = ['custom', 'custom-gemini', 'custom-claude'].includes(providerType);
 
         const newConfig = {
             ...data,
             providerConfigs: configs,
             provider: providerKey,
             apiKey: saved.apiKey || '',
-            baseUrl: isCustomTarget ? (saved.baseUrl || '') : (saved.baseUrl || getBaseUrl(providerType, provider.supportedFormats ? defaultFormat : undefined)),
-            model: saved.model || (isCustomTarget ? '' : (provider.models[0] || '')),
+            baseUrl: saved.baseUrl || '',
+            model: saved.model || '',
         };
 
         // 设置 apiFormat
-        if (provider.supportedFormats) {
-            newConfig.apiFormat = saved.apiFormat || defaultFormat;
-        } else if (provider.apiFormat) {
-            newConfig.apiFormat = provider.apiFormat;
+        if (provider.apiFormat) {
+            newConfig.apiFormat = saved.apiFormat || provider.apiFormat;
         } else {
             delete newConfig.apiFormat;
         }
@@ -1999,12 +1725,11 @@ function ApiConfigForm({ data, onChange }) {
     // 对于实例 key（如 deepseek_abc），通过 providerType 查找预设定义
     const instanceCfg = data.providerConfigs?.[data.provider];
     const resolvedProviderType = instanceCfg?.providerType || data.provider;
-    const currentProvider = PROVIDERS.find(p => p.key === data.provider) || PROVIDERS.find(p => p.key === resolvedProviderType) || PROVIDERS[7];
+    const currentProvider = PROVIDERS.find(p => p.key === data.provider) || PROVIDERS.find(p => p.key === resolvedProviderType) || PROVIDERS[0];
     const isCustom = ['custom', 'custom-gemini', 'custom-claude'].includes(resolvedProviderType);
 
     // 嵌入模型供应商
-    const EMBED_EXCLUDED = ['deepseek', 'moonshot', 'siliconflow', 'openai-responses', 'openrouter', 'groq', 'mistral', 'cohere', 'together', 'perplexity', 'xai', 'cerebras', 'github', 'stepfun', 'volcengine', 'minimax', 'yi', 'baidu'];
-    const currentEmbedProvider = PROVIDERS.find(p => p.key === data.embedProvider) || PROVIDERS.find(p => p.key === 'zhipu') || PROVIDERS[0];
+    const currentEmbedProvider = PROVIDERS.find(p => p.key === data.embedProvider) || PROVIDERS[0];
     const isEmbedCustom = ['custom', 'custom-gemini', 'custom-claude'].includes(data.embedProvider);
     const handleEmbedProviderChange = (providerKey) => {
         const provider = PROVIDERS.find(p => p.key === providerKey);
@@ -2057,185 +1782,177 @@ function ApiConfigForm({ data, onChange }) {
 
     return (
         <div>
-            {savedProfiles.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                    <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>{t('apiConfig.savedProfiles')}</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {savedProfiles.map(p => (
-                            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-secondary)', fontSize: 12 }}>
-                                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontWeight: 500, fontSize: 12, padding: 0 }} onClick={() => handleLoadProfile(p)} title={`${p.config.provider} | ${p.config.model}`}>{p.name}</button>
-                                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 11, padding: '0 2px', lineHeight: 1 }} onClick={() => handleDeleteProfile(p.id)} title={t('apiConfig.deleteProfile')}><X size={10} /></button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>{t('apiConfig.intro')}</p>
 
             {/* ===== 供应商左右分栏 ===== */}
             <div className="provider-split">
-                {/* 左侧：供应商列表 */}
+                {/* 左侧：已添加的 API 列表 */}
                 <div className="provider-list">
-                    <input
-                        className="provider-search"
-                        placeholder="搜索供应商..."
-                        value={providerSearch}
-                        onChange={e => setProviderSearch(e.target.value)}
-                        autoComplete="off"
-                        data-lpignore="true"
-                        data-1p-ignore="true"
-                    />
-                    {[
-                        { group: '🇨🇳 国内', keys: ['zhipu', 'deepseek', 'bailian', 'volcengine', 'moonshot', 'stepfun', 'yi', 'baichuan', 'hunyuan', 'baidu', 'minimax', 'siliconflow'] },
-                        { group: '国际', keys: ['openai', 'claude', 'gemini', 'gemini-native', 'openai-responses', 'groq', 'mistral', 'cohere', 'together', 'perplexity', 'xai', 'cerebras', 'github'] },
-                        { group: '聚合', keys: ['openrouter'] },
-                        { group: '自定义', keys: ['custom', 'custom-gemini', 'custom-claude'] },
-                    ].map(section => {
-                        const items = section.keys
-                            .map(k => PROVIDERS.find(p => p.key === k))
-                            .filter(Boolean)
-                            .filter(p => !providerSearch || p.label.toLowerCase().includes(providerSearch.toLowerCase()) || p.key.includes(providerSearch.toLowerCase()));
-                        if (items.length === 0) return null;
-                        return (
-                            <div key={section.group}>
-                                <div className="provider-group-header">{section.group}</div>
-                                {items.map(p => {
-                                    const hasKey = !!(data.providerConfigs?.[p.key]?.apiKey || (data.provider === p.key && data.apiKey));
-                                    // 查找该 providerType 的用户实例
-                                    const userInstances = Object.entries(data.providerConfigs || {}).filter(([k, cfg]) =>
-                                        k !== p.key && (cfg.providerType || k) === p.key
-                                    );
-                                    return (
-                                        <div key={p.key}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                                                <button
-                                                    className={`provider-item ${data.provider === p.key ? 'active' : ''}`}
-                                                    onClick={() => handleProviderChange(p.key)}
-                                                    style={{ flex: 1 }}
-                                                >
-                                                    <span className="provider-item-name">{p.label}</span>
-                                                    {hasKey && <span className="provider-item-check"><CheckCircle2 size={12} /></span>}
-                                                </button>
-                                                {/* 添加同类型端点按钮（始终显示） */}
-                                                <button
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '4px 6px', lineHeight: 1, flexShrink: 0, opacity: 0.5, transition: 'opacity 0.15s' }}
-                                                    onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                                    onMouseLeave={e => e.currentTarget.style.opacity = '0.5'}
-                                                    onClick={(e) => { e.stopPropagation(); setShowAddInstance(p.key); setNewInstanceName(''); }}
-                                                    title="添加同类型端点"
-                                                >+</button>
-                                            </div>
-                                            {/* 用户创建的实例 */}
-                                            {userInstances.map(([instKey, instCfg]) => {
-                                                const instHasKey = !!instCfg.apiKey;
-                                                return (
-                                                    <button
-                                                        key={instKey}
-                                                        className={`provider-item ${data.provider === instKey ? 'active' : ''}`}
-                                                        onClick={() => handleProviderChange(instKey)}
-                                                        style={{ paddingLeft: 24, fontSize: 12 }}
-                                                    >
-                                                        <span className="provider-item-name" style={{ fontSize: 12 }}>↳ {instCfg.instanceName || instKey}</span>
-                                                        {instHasKey && <span className="provider-item-check"><CheckCircle2 size={11} /></span>}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        );
-                    })}
+                    <button
+                        className="btn btn-primary"
+                        style={{ width: '100%', marginBottom: 10, fontSize: 12, padding: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                        onClick={() => { setShowAddInstance(true); setNewInstanceName(''); setNewInstanceFormat('custom'); }}
+                    >
+                        <Plus size={14} /> 添加 API
+                    </button>
 
-                    {/* 添加实例弹窗 */}
+                    {/* 已添加的 API 实例列表 */}
+                    {(() => {
+                        const pc = data.providerConfigs || {};
+                        const entries = Object.entries(pc);
+                        if (entries.length === 0) {
+                            return (
+                                <div style={{ padding: '20px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                                    暂无 API 配置，点击上方按钮添加
+                                </div>
+                            );
+                        }
+                        const FORMAT_LABELS = { 'custom': 'OpenAI', 'custom-gemini': 'Gemini', 'custom-claude': 'Claude' };
+                        return entries.map(([instKey, instCfg]) => {
+                            const isActive = data.provider === instKey;
+                            const hasKey = !!instCfg.apiKey;
+                            const formatType = instCfg.providerType || 'custom';
+                            const formatLabel = FORMAT_LABELS[formatType] || formatType;
+                            return (
+                                <div key={instKey} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                                    <button
+                                        className={`provider-item ${isActive ? 'active' : ''}`}
+                                        onClick={() => handleProviderChange(instKey)}
+                                        style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}
+                                    >
+                                        <span className="provider-item-name" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {instCfg.instanceName || instKey}
+                                        </span>
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '1px 6px', borderRadius: 3, flexShrink: 0 }}>{formatLabel}</span>
+                                        {hasKey && <span className="provider-item-check"><CheckCircle2 size={12} /></span>}
+                                    </button>
+                                    <button
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: '4px 6px', lineHeight: 1, flexShrink: 0, opacity: 0.4, transition: 'opacity 0.15s' }}
+                                        onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--error)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.opacity = '0.4'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setConfirmDeleteKey(instKey);
+                                        }}
+                                        title="删除"
+                                    ><Trash2 size={12} /></button>
+                                </div>
+                            );
+                        });
+                    })()}
+
+                    {/* 添加 API 弹窗 */}
                     {showAddInstance && (
-                        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setShowAddInstance(null); }}>
-                            <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg, 14px)', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', width: 380, padding: 24 }}>
-                                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>添加 {PROVIDERS.find(p => p.key === showAddInstance)?.label || showAddInstance} 端点</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>为同一供应商添加不同的 API 地址和密钥（如公司中转站、本地部署等）</div>
-                                <input
-                                    className="modal-input"
-                                    placeholder="端点名称，如：公司内部中转、本地部署..."
-                                    value={newInstanceName}
-                                    onChange={e => setNewInstanceName(e.target.value)}
-                                    autoFocus
-                                    style={{ marginBottom: 12 }}
-                                />
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setShowAddInstance(false); }}>
+                            <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg, 14px)', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', width: 400, padding: 24 }}>
+                                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>添加 API</div>
+                                <div style={{ marginBottom: 14 }}>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>名称</label>
+                                    <input
+                                        className="modal-input"
+                                        placeholder="例如：DeepSeek、Claude Pro..."
+                                        value={newInstanceName}
+                                        onChange={e => setNewInstanceName(e.target.value)}
+                                        autoFocus
+                                        style={{ marginBottom: 0 }}
+                                    />
+                                </div>
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>API 格式</label>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                        {PROVIDERS.map(p => (
+                                            <button
+                                                key={p.key}
+                                                style={{
+                                                    flex: 1, padding: '10px 8px', border: newInstanceFormat === p.key ? '2px solid var(--accent)' : '1px solid var(--border-light)',
+                                                    borderRadius: 'var(--radius-md)', background: newInstanceFormat === p.key ? 'var(--accent-light)' : 'var(--bg-primary)',
+                                                    cursor: 'pointer', fontSize: 12, fontWeight: newInstanceFormat === p.key ? 600 : 400,
+                                                    color: newInstanceFormat === p.key ? 'var(--accent)' : 'var(--text-primary)', transition: 'all 0.15s', textAlign: 'center',
+                                                }}
+                                                onClick={() => setNewInstanceFormat(p.key)}
+                                            >
+                                                {p.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                    <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowAddInstance(null)}>取消</button>
+                                    <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowAddInstance(false)}>取消</button>
                                     <button className="btn btn-primary" style={{ fontSize: 12 }} onClick={() => {
-                                        const name = newInstanceName.trim() || `${PROVIDERS.find(p => p.key === showAddInstance)?.label || showAddInstance} (新)`;
-                                        const newKey = addProviderInstance(showAddInstance, name);
-                                        setShowAddInstance(null);
-                                        // 刷新 data 并切换到新实例
+                                        const name = newInstanceName.trim() || '新 API';
+                                        const newKey = addProviderInstance(newInstanceFormat, name);
+                                        setShowAddInstance(false);
+                                        // 直接从 localStorage 读取最新状态并切换到新实例
                                         const settings = getProjectSettings();
-                                        onChange({ ...settings.apiConfig });
-                                        setTimeout(() => handleProviderChange(newKey), 50);
+                                        const saved = settings.apiConfig.providerConfigs?.[newKey] || {};
+                                        onChange({
+                                            ...settings.apiConfig,
+                                            provider: newKey,
+                                            apiKey: saved.apiKey || '',
+                                            baseUrl: saved.baseUrl || '',
+                                            model: saved.model || '',
+                                        });
                                     }}>创建</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 删除确认弹窗 */}
+                    {confirmDeleteKey && (
+                        <div style={{ position: 'fixed', inset: 0, zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setConfirmDeleteKey(null); }}>
+                            <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--radius-lg, 14px)', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', width: 340, padding: 24 }}>
+                                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>确认删除</div>
+                                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+                                    确认删除「{data.providerConfigs?.[confirmDeleteKey]?.instanceName || confirmDeleteKey}」？
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                    <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setConfirmDeleteKey(null)}>取消</button>
+                                    <button className="btn btn-primary" style={{ fontSize: 12, background: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => handleDeleteInstance(confirmDeleteKey)}>删除</button>
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* 右侧：选中供应商的配置 */}
+                {/* 右侧：选中 API 的配置 */}
                 <div className="provider-detail">
+                    {!instanceCfg ? (
+                        <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                            请先在左侧添加并选择一个 API
+                        </div>
+                    ) : (<>
                     <div className="provider-detail-header">
                         <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 15, fontWeight: 600 }}>{currentProvider.label}</span>
-                            {instanceCfg?.instanceName && (
-                                <span style={{ fontSize: 12, color: 'var(--accent)', marginLeft: 8, fontWeight: 500 }}>— {instanceCfg.instanceName}</span>
-                            )}
+                            <input
+                                className="modal-input"
+                                style={{ marginBottom: 0, fontSize: 15, fontWeight: 600, padding: '4px 8px', border: '1px solid transparent', background: 'transparent', width: '100%' }}
+                                value={instanceCfg.instanceName || ''}
+                                onChange={e => {
+                                    const configs = { ...(data.providerConfigs || {}) };
+                                    if (configs[data.provider]) {
+                                        configs[data.provider] = { ...configs[data.provider], instanceName: e.target.value };
+                                        onChange({ ...data, providerConfigs: configs });
+                                    }
+                                }}
+                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = 'transparent'; }}
+                                placeholder="输入 API 名称"
+                            />
                             <div>
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{data.provider}</span>
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 8 }}>
+                                    {(() => { const FORMAT_NAMES = { 'custom': 'OpenAI 兼容', 'custom-gemini': 'Gemini 格式', 'custom-claude': 'Claude 格式' }; return FORMAT_NAMES[resolvedProviderType] || resolvedProviderType; })()}
+                                </span>
                             </div>
                         </div>
-                        {/* 实例删除按钮（只对用户创建的实例显示） */}
-                        {instanceCfg?.providerType && data.provider !== instanceCfg.providerType && (
-                            <button
-                                style={{ background: 'none', border: '1px solid var(--error)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: 11, padding: '3px 10px', cursor: 'pointer', flexShrink: 0, opacity: 0.7, transition: 'opacity 0.15s' }}
-                                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
-                                onClick={() => {
-                                    if (!confirm(`确认删除端点「${instanceCfg.instanceName || data.provider}」？`)) return;
-                                    deleteProviderInstance(data.provider);
-                                    const settings = getProjectSettings();
-                                    onChange({ ...settings.apiConfig });
-                                }}
-                            >删除此端点</button>
-                        )}
+                        <button
+                            style={{ background: 'none', border: '1px solid var(--error)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: 11, padding: '3px 10px', cursor: 'pointer', flexShrink: 0, opacity: 0.7, transition: 'opacity 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                            onMouseLeave={e => e.currentTarget.style.opacity = '0.7'}
+                            onClick={() => setConfirmDeleteKey(data.provider)}
+                        >删除</button>
                     </div>
 
-                    {/* 供应商特定提示 */}
-                    {resolvedProviderType === 'gemini-native' && (
-                        <div className="provider-hint">{t('apiConfig.geminiNativeHint')}</div>
-                    )}
-                    {resolvedProviderType === 'volcengine' && (
-                        <div className="provider-hint">火山引擎需要先在控制台创建「推理接入点」，然后将 endpoint_id（如 ep-xxxx）填入模型字段。支持豆包系列模型。</div>
-                    )}
-                    {resolvedProviderType === 'bailian' && (
-                        <div className="provider-hint">阿里云百炼平台 API Key 在「模型服务灵积」控制台获取，支持通义千问系列模型。</div>
-                    )}
-                    {resolvedProviderType === 'minimax' && (
-                        <div className="provider-hint">MiniMax API Key 在开放平台获取，支持 abab 系列和 MiniMax-Text 系列模型。</div>
-                    )}
-
-                    {/* API 格式选择（多格式供应商） */}
-                    {(resolvedProviderType === 'bailian' || resolvedProviderType === 'minimax') && (
-                        <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 4 }}>API 格式</label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                {[
-                                    { key: 'openai', label: 'OpenAI 兼容' },
-                                    { key: 'anthropic', label: 'Anthropic 兼容' },
-                                ].map(opt => (
-                                    <button key={opt.key} style={{ padding: '5px 12px', border: (data.apiFormat || 'openai') === opt.key ? '2px solid var(--accent)' : '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: (data.apiFormat || 'openai') === opt.key ? 'var(--accent-light)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 11, fontWeight: (data.apiFormat || 'openai') === opt.key ? 600 : 400, color: (data.apiFormat || 'openai') === opt.key ? 'var(--accent)' : 'var(--text-primary)', transition: 'all 0.15s' }} onClick={() => handleApiFormatChange(opt.key)}>{opt.label}</button>
-                                ))}
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>Anthropic 格式可解锁 Claude 代码复用，OpenAI 格式兼容性更广</div>
-                        </div>
-                    )}
 
                     {/* API Key */}
                     <FieldInput label="API Key" value={data.apiKey} onChange={v => update('apiKey', v)} placeholder={t('apiConfig.apiKeyPlaceholder')} secret />
@@ -2520,24 +2237,7 @@ function ApiConfigForm({ data, onChange }) {
                         )}
                     </div>
 
-                    {/* Reasoning Effort for OpenAI Responses */}
-                    {resolvedProviderType === 'openai-responses' && (
-                        <div style={{ marginBottom: 12 }}>
-                            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>思考等级 (Reasoning Effort)</label>
-                            <div style={{ display: 'flex', gap: 6 }}>
-                                {[
-                                    { key: 'none', label: '关闭' },
-                                    { key: 'low', label: 'low' },
-                                    { key: 'medium', label: 'medium' },
-                                    { key: 'high', label: 'high' },
-                                    { key: 'xhigh', label: 'xhigh' },
-                                ].map(opt => (
-                                    <button key={opt.key} style={{ padding: '5px 14px', border: (data.reasoningEffort || 'medium') === opt.key ? '2px solid var(--accent)' : '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', background: (data.reasoningEffort || 'medium') === opt.key ? 'var(--accent-light)' : 'var(--bg-primary)', cursor: 'pointer', fontSize: 12, fontWeight: (data.reasoningEffort || 'medium') === opt.key ? 600 : 400, color: (data.reasoningEffort || 'medium') === opt.key ? 'var(--accent)' : 'var(--text-primary)', transition: 'all 0.15s' }} onClick={() => update('reasoningEffort', opt.key)}>{opt.label}</button>
-                                ))}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>控制模型推理深度，“关闭”禁用思维链，默认 Medium，XHigh 质量最高但更慢</div>
-                        </div>
-                    )}
+                    </>)}
                 </div>
             </div>
 
@@ -2664,48 +2364,17 @@ function ApiConfigForm({ data, onChange }) {
 
             {data.useCustomEmbed && (
                 <div className="provider-split" style={{ marginBottom: 20 }}>
-                    {/* 左侧：嵌入供应商列表 */}
+                    {/* 左侧：嵌入 API 格式选择 */}
                     <div className="provider-list">
-                        <input
-                            className="provider-search"
-                            placeholder="搜索供应商..."
-                            value={embedProviderSearch}
-                            onChange={e => setEmbedProviderSearch(e.target.value)}
-                            autoComplete="off"
-                            data-lpignore="true"
-                            data-1p-ignore="true"
-                        />
-                        {[
-                            { group: '🇨🇳 国内', keys: ['zhipu', 'bailian', 'hunyuan', 'baichuan', 'siliconflow'] },
-                            { group: '国际', keys: ['openai', 'claude', 'gemini', 'gemini-native'] },
-                            { group: '自定义', keys: ['custom', 'custom-gemini', 'custom-claude'] },
-                        ].map(section => {
-                            const items = section.keys
-                                .map(k => PROVIDERS.find(p => p.key === k))
-                                .filter(Boolean)
-                                .filter(p => !EMBED_EXCLUDED.includes(p.key))
-                                .filter(p => !embedProviderSearch || p.label.toLowerCase().includes(embedProviderSearch.toLowerCase()) || p.key.includes(embedProviderSearch.toLowerCase()));
-                            if (items.length === 0) return null;
-                            return (
-                                <div key={section.group}>
-                                    <div className="provider-group-header">{section.group}</div>
-                                    {items.map(p => {
-                                        const embedCfg = data.embedProviderConfigs?.[p.key];
-                                        const hasKey = !!(embedCfg?.apiKey || (data.embedProvider === p.key && (data.embedApiKey || data.apiKey)));
-                                        return (
-                                            <button
-                                                key={p.key}
-                                                className={`provider-item ${data.embedProvider === p.key ? 'active' : ''}`}
-                                                onClick={() => handleEmbedProviderChange(p.key)}
-                                            >
-                                                <span className="provider-item-name">{p.label}</span>
-                                                {hasKey && <span className="provider-item-check"><CheckCircle2 size={12} /></span>}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
+                        {PROVIDERS.map(p => (
+                            <button
+                                key={p.key}
+                                className={`provider-item ${data.embedProvider === p.key ? 'active' : ''}`}
+                                onClick={() => handleEmbedProviderChange(p.key)}
+                            >
+                                <span className="provider-item-name">{p.label}</span>
+                            </button>
+                        ))}
                     </div>
 
                     {/* 右侧：嵌入供应商配置 */}
@@ -2836,28 +2505,6 @@ function ApiConfigForm({ data, onChange }) {
                     </div>
                 </div>
             )}
-
-            {/* 保存配置 */}
-            {data.apiKey && (
-                <div style={{ marginBottom: 14 }}>
-                    {!showSaveInput ? (
-                        <button style={{ padding: '8px 16px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', background: 'var(--bg-primary)', cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }} onClick={() => { const pl = PROVIDERS.find(p => p.key === data.provider)?.label || data.provider; setProfileName(`${pl} - ${data.model || t('common.confirm')}`); setShowSaveInput(true); }}>
-                            {t('apiConfig.saveProfileBtn')}
-                        </button>
-                    ) : (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <input className="modal-input" style={{ margin: 0, flex: 1, padding: '7px 10px', fontSize: 13 }} value={profileName} onChange={e => setProfileName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveProfile()} placeholder={t('apiConfig.saveProfilePlaceholder')} autoFocus autoComplete="off" data-lpignore="true" data-1p-ignore="true" />
-                            <button className="btn btn-primary btn-sm" style={{ padding: '7px 14px', whiteSpace: 'nowrap' }} onClick={handleSaveProfile}>{t('apiConfig.saveBtn')}</button>
-                            <button className="btn btn-ghost btn-sm" style={{ padding: '7px 10px' }} onClick={() => setShowSaveInput(false)}>{t('common.cancel')}</button>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div style={{ marginTop: 16, padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-                <strong>{t('apiConfig.howToGetKey')}</strong><br />
-                • {t('apiConfig.keyGuide').split('\n').map((line, i) => <span key={i}>{line.replace(/^• /, '')}<br /></span>)}
-            </div>
         </div>
     );
 }

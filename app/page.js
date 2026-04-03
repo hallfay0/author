@@ -42,11 +42,6 @@ const SnapshotManager = dynamic(() => import('./components/SnapshotManager'), { 
 const WelcomeModal = dynamic(() => import('./components/WelcomeModal'), { ssr: false });
 const UpdateBanner = dynamic(() => import('./components/UpdateBanner'), { ssr: false });
 const BookInfoPanel = dynamic(() => import('./components/BookInfoPanel'), { ssr: false });
-const CloudSyncIndicator = dynamic(() => import('./components/CloudSyncIndicator'), { ssr: false });
-const LoginModal = dynamic(() => import('./components/LoginModal'), { ssr: false });
-const AccountModal = dynamic(() => import('./components/AccountModal'), { ssr: false });
-const RegisterModal = dynamic(() => import('./components/RegisterModal'), { ssr: false });
-const SyncGuideModal = dynamic(() => import('./components/SyncGuideModal'), { ssr: false });
 
 export default function Home() {
   const {
@@ -248,6 +243,22 @@ export default function Home() {
     [chapters]
   );
 
+  // 设定集指纹 —— 定时轮询检测设定节点变化，驱动参考列表刷新
+  const [settingsFingerprint, setSettingsFingerprint] = useState('');
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const nodes = await getSettingsNodes();
+        const fp = nodes.map(n => `${n.id}:${n.name}:${n.enabled}:${n.type}`).join('|');
+        if (active) setSettingsFingerprint(fp);
+      } catch {}
+    };
+    poll();
+    const timer = setInterval(poll, 2000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+
   // 初始化上下文条目和勾选状态（设定集 + 章节 + 对话历史）
   useEffect(() => {
     if (!activeChapterId) return;
@@ -283,17 +294,21 @@ export default function Home() {
     };
 
     loadContext();
-  }, [activeChapterId, settingsVersion, chatHistory.length, chaptersFingerprint]);
+  }, [activeChapterId, settingsFingerprint, settingsVersion, chatHistory.length, chaptersFingerprint]);
 
-  // 定时自动存档 (每 15 分钟)
+  // 定时自动存档 (每 15 分钟，可在快照页面关闭)
   useEffect(() => {
+    const isAutoEnabled = () => {
+      try { return localStorage.getItem('author-auto-snapshot') !== 'false'; } catch { return true; }
+    };
+
     // 首次加载后延迟 5 分钟做一次初始存档，之后每 15 分钟做一次
     const initialTimer = setTimeout(() => {
-      createSnapshot(t('page.autoSnapshot'), 'auto').catch(e => console.error(t('page.autoSnapshotFail'), e));
+      if (isAutoEnabled()) createSnapshot(t('page.autoSnapshot'), 'auto').catch(e => console.error(t('page.autoSnapshotFail'), e));
     }, 5 * 60 * 1000);
 
     const intervalTimer = setInterval(() => {
-      createSnapshot(t('page.autoSnapshot'), 'auto').catch(e => console.error(t('page.autoSnapshotFail'), e));
+      if (isAutoEnabled()) createSnapshot(t('page.autoSnapshot'), 'auto').catch(e => console.error(t('page.autoSnapshotFail'), e));
     }, 15 * 60 * 1000);
 
     return () => {
@@ -457,7 +472,6 @@ export default function Home() {
           </div>
         </div>
         <div className="top-header-right">
-          <CloudSyncIndicator />
         </div>
       </header>
 
@@ -593,11 +607,7 @@ export default function Home() {
 
       {/* ===== 首次引导 ===== */}
       <TourOverlay onOpenHelp={() => setShowHelp(true)} />
-      <LoginModal />
-      <AccountModal />
-      <RegisterModal />
       <WelcomeModal />
-      <SyncGuideModal />
     </div>
   );
 }

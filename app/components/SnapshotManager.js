@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Star } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useI18n } from '../lib/useI18n';
-import { getSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot } from '../lib/snapshots';
+import { getSnapshots, createSnapshot, restoreSnapshot, deleteSnapshot, deleteAllSnapshots } from '../lib/snapshots';
 import { promptInput } from '../lib/promptInput';
 
 export default function SnapshotManager({ onRestored }) {
@@ -17,6 +17,14 @@ export default function SnapshotManager({ onRestored }) {
     const [selectedId, setSelectedId] = useState(null);
     const [isRestoring, setIsRestoring] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
+    const [autoSnapshot, setAutoSnapshot] = useState(() => {
+        try { return localStorage.getItem('author-auto-snapshot') !== 'false'; } catch { return true; }
+    });
+
+    const toggleAutoSnapshot = (v) => {
+        setAutoSnapshot(v);
+        localStorage.setItem('author-auto-snapshot', v ? 'true' : 'false');
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -87,6 +95,17 @@ export default function SnapshotManager({ onRestored }) {
         }
     };
 
+    const handleDeleteAll = async () => {
+        if (!confirm('确认删除所有快照？此操作不可撤销。')) return;
+        try {
+            await deleteAllSnapshots();
+            setSnapshots([]);
+            setSelectedId(null);
+        } catch (err) {
+            alert('删除失败');
+        }
+    };
+
     const selectedSnap = snapshots.find(s => s.id === selectedId);
 
     const formatDate = (ts) => {
@@ -107,10 +126,22 @@ export default function SnapshotManager({ onRestored }) {
                 <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     {/* 左侧列表 */}
                     <div style={{ width: 300, borderRight: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
-                        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 10 }}>
-                            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleCreateManual} disabled={isCreating}>
-                                {isCreating ? t('snapshot.creating') : t('snapshot.createBtn')}
-                            </button>
+                        <div style={{ padding: '16px', borderBottom: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleCreateManual} disabled={isCreating}>
+                                    {isCreating ? t('snapshot.creating') : t('snapshot.createBtn')}
+                                </button>
+                                {snapshots.length > 0 && (
+                                    <button className="btn btn-ghost" style={{ color: 'var(--error)', fontSize: 12, padding: '6px 12px', whiteSpace: 'nowrap' }} onClick={handleDeleteAll}>
+                                        全部删除
+                                    </button>
+                                )}
+                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={autoSnapshot} onChange={e => toggleAutoSnapshot(e.target.checked)} style={{ margin: 0 }} />
+                                自动存档（每15分钟）
+                            </label>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>最多保存 10 个快照</div>
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '10px' }}>
                             {loading ? (

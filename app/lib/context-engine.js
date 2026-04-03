@@ -132,6 +132,57 @@ export async function getContextItems(activeChapterId, chaptersOverride) {
         }
     }
 
+    // 用户自建分类（category 以 'custom-' 开头）
+    const knownCategories = new Set(Object.keys(categoryMap));
+    const customCatIds = [...new Set(itemNodes.filter(n => n.category?.startsWith('custom-')).map(n => n.category))];
+    for (const catId of customCatIds) {
+        // 找到该分类的 folder 节点以获取用户命名的分类名称
+        const folder = nodes.find(n => n.type === 'folder' && n.category === catId);
+        const groupName = folder?.name || '自定义';
+        const catNodes = itemNodes.filter(n => n.category === catId);
+        if (catNodes.length === 0) {
+            items.push({
+                id: `empty-${catId}`,
+                group: groupName,
+                name: '（暂无条目）',
+                tokens: 0,
+                category: catId,
+                enabled: false,
+                _empty: true,
+            });
+            continue;
+        }
+        for (const n of catNodes) {
+            const text = buildCustomContext([n], nodes);
+            items.push({
+                id: `setting-${n.id}`,
+                group: groupName,
+                name: n.name,
+                tokens: estimateTokens(text),
+                category: catId,
+                enabled: n.enabled !== false,
+                _nodeId: n.id,
+            });
+        }
+    }
+    // 也处理有 folder 但暂无条目的自建分类
+    const customFolderCats = nodes
+        .filter(n => n.type === 'folder' && n.category?.startsWith('custom-'))
+        .map(n => n.category)
+        .filter(c => !customCatIds.includes(c));
+    for (const catId of [...new Set(customFolderCats)]) {
+        const folder = nodes.find(n => n.type === 'folder' && n.category === catId);
+        items.push({
+            id: `empty-${catId}`,
+            group: folder?.name || '自定义',
+            name: '（暂无条目）',
+            tokens: 0,
+            category: catId,
+            enabled: false,
+            _empty: true,
+        });
+    }
+
     // 作品信息 — 从当前作品的 bookInfo 特殊节点读取
     const bookInfoNode = nodes.find(n => n.category === 'bookInfo' && n.type === 'special');
     const bookInfo = bookInfoNode?.content || {};
@@ -245,9 +296,15 @@ export async function buildContext(activeChapterId, selectedText, selectedIds = 
     // ===== 构建设定索引（全量，供 AI 查询/查找/删除用） =====
     const allItemNodes = nodes.filter(n => n.type === 'item');
     const catLabel = { character: '角色', world: '世界观', location: '地点', object: '物品', plot: '大纲', rules: '规则', custom: '自定义' };
+    // 为 custom-xxx 用户自建分类建立 category → folder name 映射
+    const customCatLabelMap = {};
+    nodes.filter(n => n.type === 'folder' && n.category?.startsWith('custom-')).forEach(n => {
+        if (!customCatLabelMap[n.category]) customCatLabelMap[n.category] = n.name || '自定义';
+    });
     const settingsIndexLines = allItemNodes.map(n => {
         const statusTag = n.enabled === false ? '[已禁用]' : '';
-        return `- ${catLabel[n.category] || n.category} | ${n.name}${statusTag}`;
+        const label = catLabel[n.category] || customCatLabelMap[n.category] || '自定义';
+        return `- ${label} | ${n.name}${statusTag}`;
     });
     const settingsIndex = settingsIndexLines.length > 0
         ? settingsIndexLines.join('\n')
@@ -268,7 +325,7 @@ export async function buildContext(activeChapterId, selectedText, selectedIds = 
         objects: buildObjectsContext(finalItemNodes.filter(n => n.category === 'object'), nodes),
         plotOutline: buildPlotContext(finalItemNodes.filter(n => n.category === 'plot'), nodes),
         writingRules: buildRulesContext(finalItemNodes.filter(n => n.category === 'rules')),
-        customSettings: buildCustomContext(finalItemNodes.filter(n => n.category === 'custom'), nodes),
+        customSettings: buildCustomContext(finalItemNodes.filter(n => n.category === 'custom' || n.category?.startsWith('custom-')), nodes),
         previousChapters: selectedIds
             ? buildPreviousContextFiltered(chapters, currentIndex, selectedIds)
             : buildPreviousContext(chapters, currentIndex),

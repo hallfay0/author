@@ -175,23 +175,6 @@ function createWindow() {
         }
     });
 
-    let isForceClosing = false;
-
-    // 拦截关闭事件，询问是否需要同步
-    mainWindow.on('close', (e) => {
-        if (!isForceClosing && mainWindow && !mainWindow.isDestroyed()) {
-            e.preventDefault();
-            mainWindow.webContents.send('confirm-exit-sync');
-        }
-    });
-
-    ipcMain.once('allow-close', () => {
-        isForceClosing = true;
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.close();
-        }
-    });
-
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -767,13 +750,7 @@ function setupAutoUpdater() {
         autoUpdater.quitAndInstall(false, true); // isSilent=false, isForceRunAfter=true
     });
 
-    // 窗口显示后 5 秒自动检查一次更新
-    setTimeout(() => {
-        log('Auto-checking for updates...');
-        autoUpdater.checkForUpdates().catch(err => {
-            log('Auto-check update failed: ' + err.message);
-        });
-    }, 5000);
+    // 不再自动检查更新，用户可在帮助面板手动检查
 }
 
 app.on('second-instance', () => {

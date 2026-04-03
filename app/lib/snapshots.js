@@ -51,13 +51,11 @@ export async function createSnapshot(label, type = 'auto') {
         const existing = await getSnapshots();
         existing.unshift(snapshot); // 最新在前
 
-        // 限制自动快照数量（例如最多保留 50 个自动快照，超出的按时间删除）
-        const maxAutoSnapshots = 50;
+        // 限制快照总数量（最多保留 10 个，超出的按时间删除）
+        const maxSnapshots = 10;
         let finalSnapshots = existing;
-        const autoSnapshots = existing.filter(s => s.type === 'auto');
-        if (autoSnapshots.length > maxAutoSnapshots) {
-            const toRemove = autoSnapshots.slice(maxAutoSnapshots).map(s => s.id);
-            finalSnapshots = existing.filter(s => !toRemove.includes(s.id));
+        if (existing.length > maxSnapshots) {
+            finalSnapshots = existing.slice(0, maxSnapshots);
         }
 
         // 保存到本地 IndexedDB（不走 persistSet，避免同步到云端）
@@ -117,4 +115,12 @@ export async function deleteSnapshot(snapshotId) {
     const remaining = snapshots.filter(s => s.id !== snapshotId);
     await set(SNAPSHOTS_KEY, remaining);
     return remaining;
+}
+
+/**
+ * 删除所有快照
+ */
+export async function deleteAllSnapshots() {
+    await set(SNAPSHOTS_KEY, []);
+    return [];
 }

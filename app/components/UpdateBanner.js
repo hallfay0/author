@@ -51,29 +51,7 @@ export default function UpdateBanner() {
         });
     }, [isElectron, t]);
 
-    // ===== Web 模式：API 检查更新 =====
-    useEffect(() => {
-        if (isElectron) return; // Electron 由 main 进程自动检查
-
-        const checkUpdate = async () => {
-            try {
-                const res = await fetch('/api/check-update', { cache: 'no-store' });
-                if (!res.ok) return;
-                const data = await res.json();
-
-                if (data.hasUpdate && data.latest) {
-                    const dismissedVersion = sessionStorage.getItem('author-update-dismissed');
-                    if (dismissedVersion === data.latest) return;
-                    setUpdateInfo(data);
-                }
-            } catch {
-                // 网络失败静默跳过
-            }
-        };
-
-        const timer = setTimeout(checkUpdate, 3000);
-        return () => clearTimeout(timer);
-    }, [isElectron]);
+    // ===== 不再自动检查更新 =====
 
     const handleDismiss = () => {
         setDismissed(true);
