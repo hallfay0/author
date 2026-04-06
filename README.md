@@ -1,4 +1,4 @@
-# Author (Local Edition)
+=# Author (Local Edition)
 
 > 基于 [YuanShiJiLoong/author](https://github.com/YuanShiJiLoong/author) 修改的纯本地版本。
 >
@@ -10,7 +10,7 @@
 
 ---
 
-## 相比原版的改动 (v1.0)
+## 相比原版的改动
 
 - **完全本地化** — 删除所有登录、Firebase 云同步功能，数据 100% 留在本地
 - **API 配置页面优化** — 重新调整布局，修复若干 bug
