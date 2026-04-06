@@ -19,42 +19,21 @@ function compareSemver(a, b) {
 }
 
 /**
- * 从 GitHub 或 Gitee 获取最新 Release 版本号
- * 优先 GitHub，超时/失败后回退到 Gitee
+ * 从 GitHub 获取最新 Release 版本号
+ * 仅使用 GitHub
  */
 async function fetchLatestVersion() {
-    const sources = [
-        {
-            name: 'GitHub',
-            url: 'https://api.github.com/repos/YuanShiJiLoong/author/releases/latest',
+    try {
+        const res = await fetch('https://api.github.com/repos/mleafish/author/releases/latest', {
             headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'Author-App' },
-            extract: (data) => data.tag_name,
-        },
-        {
-            name: 'Gitee',
-            url: 'https://gitee.com/api/v5/repos/yuanshijilong/author/releases/latest',
-            headers: {},
-            extract: (data) => data.tag_name,
-        },
-    ];
-
-    for (const source of sources) {
-        try {
-            const res = await fetch(source.url, {
-                headers: source.headers,
-                signal: AbortSignal.timeout(5000), // 5 秒超时
-            });
-            if (!res.ok) continue;
-            const data = await res.json();
-            const tag = source.extract(data);
-            if (tag) return tag;
-        } catch {
-            // 当前源失败，尝试下一个
-            continue;
-        }
+            signal: AbortSignal.timeout(5000), // 5 秒超时
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.tag_name || null;
+    } catch {
+        return null;
     }
-
-    return null; // 所有源都失败
 }
 
 export async function GET() {

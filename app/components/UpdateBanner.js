@@ -249,7 +249,7 @@ export default function UpdateBanner() {
                 {!canAutoUpdate && (
                     <>
                         <a
-                            href="https://github.com/YuanShiJiLoong/author"
+                            href="https://github.com/mleafish/author"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="update-banner-link"
@@ -257,7 +257,7 @@ export default function UpdateBanner() {
                             {t('update.viewSource')}
                         </a>
                         <a
-                            href="https://github.com/YuanShiJiLoong/author/releases/latest"
+                            href="https://github.com/mleafish/author/releases/latest"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="update-banner-link"

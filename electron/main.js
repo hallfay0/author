@@ -1,6 +1,6 @@
 const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawn } = require('child_process');
 const http = require('http');
 const net = require('net');
 const fs = require('fs');
@@ -35,7 +35,7 @@ const logFile = path.join(app.getPath('userData'), 'author-debug.log');
 function log(msg) {
     const line = `[${new Date().toISOString()}] ${msg}\n`;
     console.log(msg);
-    try { fs.appendFileSync(logFile, line); } catch (e) { }
+    fs.appendFile(logFile, line, () => { });
 }
 
 // 防止多开
@@ -205,19 +205,57 @@ async function findAvailablePort(startPort, maxTries = 10) {
 }
 
 // 尝试杀掉占用端口的进程 (Windows)
-function tryKillPortProcess(port) {
+function execCommand(command, timeout = 5000) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, {
+            shell: true,
+            windowsHide: true,
+        });
+
+        let stdout = '';
+        let stderr = '';
+        let settled = false;
+
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            child.kill();
+            reject(new Error(`Command timed out: ${command}`));
+        }, timeout);
+
+        child.stdout?.on('data', (data) => {
+            stdout += data.toString();
+        });
+        child.stderr?.on('data', (data) => {
+            stderr += data.toString();
+        });
+        child.on('error', (err) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            reject(err);
+        });
+        child.on('close', (code) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            if (code === 0) resolve(stdout);
+            else reject(new Error(stderr || stdout || `Command failed with code ${code}: ${command}`));
+        });
+    });
+}
+
+async function tryKillPortProcess(port) {
     try {
         if (process.platform === 'win32') {
-            const result = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8', timeout: 5000 });
-            const lines = result.trim().split('\n');
-            for (const line of lines) {
-                const parts = line.trim().split(/\s+/);
-                const pid = parts[parts.length - 1];
-                if (pid && pid !== '0') {
-                    log(`Killing process ${pid} on port ${port}`);
-                    try { execSync(`taskkill /F /PID ${pid}`, { timeout: 5000 }); } catch (e) { }
-                }
-            }
+            const result = await execCommand(`netstat -ano | findstr :${port} | findstr LISTENING`);
+            const pids = [...new Set(result.trim().split('\n').map(line => line.trim().split(/\s+/).pop()).filter(pid => pid && pid !== '0'))];
+            await Promise.all(pids.map(async (pid) => {
+                log(`Killing process ${pid} on port ${port}`);
+                try {
+                    await execCommand(`taskkill /F /PID ${pid}`);
+                } catch (e) { }
+            }));
         }
     } catch (e) {
         // 没有进程占用或命令失败，忽略
@@ -305,10 +343,7 @@ function startNextServer() {
         }
 
         // 尝试释放被占用的端口
-        tryKillPortProcess(BASE_PORT);
-
-        // 等待一下让端口释放
-        await new Promise(r => setTimeout(r, 500));
+        await tryKillPortProcess(BASE_PORT);
 
         // 查找可用端口
         actualPort = await findAvailablePort(BASE_PORT);
@@ -459,8 +494,8 @@ function tryChildProcessMode(standaloneDir, serverPath) {
                 serverReady = false;
             });
 
-            // 等 3 秒检查是否还活着
-            await new Promise(r => setTimeout(r, 3000));
+            // 最多等 1.2 秒确认子进程没有立刻退出
+            await new Promise(r => setTimeout(r, 1200));
             if (serverCrashed) {
                 log('[ChildProcess] Process crashed during startup');
                 resolve(false);
@@ -503,8 +538,8 @@ function tryInProcessMode(standaloneDir, serverPath) {
             require(serverPath);
             log('[InProcess] server.js loaded successfully (sync)');
 
-            // 等待 2 秒让服务完成异步初始化
-            await new Promise(r => setTimeout(r, 2000));
+            // 短暂等待让服务完成异步初始化
+            await new Promise(r => setTimeout(r, 600));
 
             updateSplashText('等待服务就绪...');
             resolve(true);
