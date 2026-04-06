@@ -1,4 +1,4 @@
-=# Author (Local Edition)
+# Author (本地版)
 
 > 基于 [YuanShiJiLoong/author](https://github.com/YuanShiJiLoong/author) 修改的纯本地版本。
 >
