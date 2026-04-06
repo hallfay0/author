@@ -1,6 +1,6 @@
 {
   "name": "author-app",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "electron:dev": "npm run dev & npx electron . --dev",
-    "electron:build": "node -e \"const fs=require('fs');['dist','.next'].forEach(d=>{if(fs.existsSync(d)){fs.rmSync(d,{recursive:true,force:true})}})\" && npx next build && npx electron-builder --win",
+    "electron:build": "node -e \"const fs=require('fs'); const remove=(d)=>{try{if(fs.existsSync(d))fs.rmSync(d,{recursive:true,force:true})}catch(e){console.warn('[clean]',d,e.message)}}; ['.next','dist'].forEach(remove)\" && npx next build && npx electron-builder --win",
     "electron:start": "npx electron ."
   },
   "dependencies": {
@@ -88,6 +88,8 @@
           "**/*",
           "!dist",
           "!dist/**/*",
+          "!dist*",
+          "!dist*/**/*",
           "!.git",
           "!.git/**/*",
           "!data",

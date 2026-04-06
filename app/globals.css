@@ -14,6 +14,12 @@
   --editor-font-size: 17px;
   --editor-line-height: 1.9;
   --editor-max-width: 816px;
+  --author-writing-bg: var(--bg-canvas);
+  --author-writing-bg-image: none;
+  --author-writing-bg-size: cover;
+  --author-page-bg: var(--bg-editor);
+  --author-page-bg-image: none;
+  --author-page-bg-size: cover;
 }
 
 /* 默认 / 经典暖纸模式 (Warm Classic) */
@@ -1222,8 +1228,12 @@ body.resizing .main-content {
   justify-content: center;
   align-items: flex-start;
   padding: 40px 16px 80px;
-  background: var(--bg-canvas) !important;
-  transition: margin-right 0.3s ease;
+  background-color: var(--author-writing-bg) !important;
+  background-image: var(--author-writing-bg-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: var(--author-writing-bg-size);
+  transition: margin-right 0.3s ease, background-color 0.2s ease;
   /* 禁用滚动锚定，防止虚拟分页元素重排时导致原生滚动条跳动 */
   overflow-anchor: none;
 }
@@ -1257,7 +1267,11 @@ body.resizing .main-content {
 
 .page-card {
   width: 100%;
-  background: var(--bg-editor);
+  background: var(--author-page-bg);
+  background-image: var(--author-page-bg-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: var(--author-page-bg-size);
   box-shadow: var(--shadow-page);
   border: 1px solid var(--border-light);
   border-radius: 2px;

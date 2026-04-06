@@ -46,6 +46,23 @@ const Editor = forwardRef(function Editor({ content, chapterId, onUpdate, editab
     const debounceRef = useRef(null);
     const isLoadingContentRef = useRef(false);
     const contentRef = useRef(null);
+    const { writingBackground } = useAppStore();
+
+    const editorContainerBackgroundStyle = useMemo(() => ({
+        backgroundColor: writingBackground?.canvas?.color || 'var(--bg-canvas)',
+        backgroundImage: writingBackground?.canvas?.type === 'image' && writingBackground?.canvas?.image ? `url("${writingBackground.canvas.image}")` : 'none',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: writingBackground?.canvas?.size || 'cover',
+    }), [writingBackground]);
+
+    const pageCardBackgroundStyle = useMemo(() => ({
+        backgroundColor: writingBackground?.page?.color || 'var(--bg-editor)',
+        backgroundImage: writingBackground?.page?.type === 'image' && writingBackground?.page?.image ? `url("${writingBackground.page.image}")` : 'none',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: writingBackground?.page?.size || 'cover',
+    }), [writingBackground]);
 
     // 页数状态
     const [pageCount, setPageCount] = useState(1);
@@ -268,7 +285,7 @@ const Editor = forwardRef(function Editor({ content, chapterId, onUpdate, editab
     }, []);
 
     if (!editor) return (
-        <div className="editor-container" style={{ flex: 1, background: 'var(--bg-canvas)' }} />
+        <div className="editor-container" style={{ flex: 1, ...editorContainerBackgroundStyle }} />
     );
 
     // 容器总高度 = 页数 × 单页高 + 间隙总高
@@ -279,6 +296,7 @@ const Editor = forwardRef(function Editor({ content, chapterId, onUpdate, editab
             <EditorToolbar editor={editor} margins={margins} setMargins={setMargins} />
             <div
                 className="editor-container"
+                style={editorContainerBackgroundStyle}
                 onMouseDown={(e) => {
                     // 记录 mousedown 是否在 tiptap 内部，避免拖选文字松开时误触发 focus('end')
                     e.currentTarget._mouseDownInTiptap = !!e.target.closest('.tiptap');
@@ -311,6 +329,7 @@ const Editor = forwardRef(function Editor({ content, chapterId, onUpdate, editab
                                 key={i}
                                 className="page-card"
                                 style={{
+                                    ...pageCardBackgroundStyle,
                                     height: PAGE_HEIGHT,
                                     marginBottom: i === pageCount - 1 ? 0 : PAGE_GAP,
                                 }}

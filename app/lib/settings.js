@@ -1,6 +1,6 @@
 // 设定集管理 - 存储人物、世界观、大纲等全局创作信息
 // 这些信息会在每次AI调用时作为上下文传入，让AI像Cursor一样了解整个项目
-// 基于「叙事引擎」架构 — 支持网络小说、传统文学、剧本/脚本三种创作模式
+// 基于「叙事引擎」架构 — 当前仅保留网络小说创作模式
 
 import { persistGet, persistSet, persistDel } from './persistence';
 import { getEmbedding } from './embeddings';
@@ -54,52 +54,11 @@ export const WRITING_MODES = {
             { key: 'numericStats', label: '数值属性', placeholder: '攻击力+500\n暴击率+15%', multiline: true, rows: 3 },
         ],
     },
-    traditional: {
-        key: 'traditional',
-        label: '传统文学',
-        icon: 'book-open',
-        color: '#8b5cf6',
-        desc: '适合严肃小说、纯文学、短篇、出版向作品',
-        painPoint: '主题编织与草稿迭代',
-        extraCharacterFields: [
-            { key: 'coreTrauma', label: '核心创伤', placeholder: '角色内心深处的伤痕、驱动行为的心理根源', multiline: true, rows: 2 },
-            { key: 'innerMonologue', label: '内心独白关键词', placeholder: '角色内心世界的典型词汇和思维方式', multiline: true, rows: 2 },
-            { key: 'voice', label: '人物声音/对话标签', placeholder: '独特的措辞习惯、语法特点、方言痕迹...', multiline: true, rows: 2 },
-            { key: 'motifs', label: '反复意象/母题', placeholder: '与角色绑定的象征符号，如“绿光”、“断桥”', multiline: true, rows: 2 },
-        ],
-        extraLocationFields: [
-            { key: 'sensoryVisual', label: '视觉描写', placeholder: '色调、光线、空间感...', multiline: true, rows: 2 },
-            { key: 'sensoryAudio', label: '听觉描写', placeholder: '环境音、远处声响...', multiline: true, rows: 2 },
-            { key: 'sensorySmell', label: '嗅觉/触觉', placeholder: '气味、温度、湿度、质感...', multiline: true, rows: 2 },
-            { key: 'mood', label: '氛围/情绪基调', placeholder: '压抑、温馨、荒凉、神秘...', multiline: false },
-        ],
-        extraObjectFields: [
-            { key: 'symbolism', label: '象征意义', placeholder: '这个物品在主题上代表什么？', multiline: true, rows: 2 },
-        ],
-    },
-    screenplay: {
-        key: 'screenplay',
-        label: '剧本/脚本',
-        icon: 'clapperboard',
-        color: '#f59e0b',
-        desc: '适合影视剧本、舞台剧、广播剧等脚本创作',
-        painPoint: '连续性与制作可行性',
-        extraCharacterFields: [
-            { key: 'castType', label: '角色类型', placeholder: '主演 / 配角 / 客串 / 群演', multiline: false },
-            { key: 'sceneCount', label: '出场场次', placeholder: '出现在哪些场次（如 4, 12, 55）', multiline: false },
-            { key: 'dialogueStyle', label: '对白风格笔记', placeholder: '说话节奏、用语习惯、语气特点...', multiline: true, rows: 3 },
-        ],
-        extraLocationFields: [
-            { key: 'slugline', label: '场景标题', placeholder: '如：INT. 厨房 - DAY / EXT. 街道 - NIGHT', multiline: false },
-            { key: 'shootingNotes', label: '拍摄备注', placeholder: '布景需求、特殊灯光、道具需求...', multiline: true, rows: 2 },
-            { key: 'usedInScenes', label: '使用场次', placeholder: '此场景在哪些场次中被使用', multiline: false },
-        ],
-        extraObjectFields: [
-            { key: 'propCategory', label: '道具分类', placeholder: '手持道具 / 场景道具 / 特效道具', multiline: false },
-            { key: 'requiredScenes', label: '所需场次', placeholder: '需要此道具的场次编号', multiline: false },
-        ],
-    },
 };
+
+function normalizeWritingMode(mode) {
+    return WRITING_MODES[mode] ? mode : 'webnovel';
+}
 
 // 默认项目设定结构
 const DEFAULT_SETTINGS = {
@@ -208,6 +167,7 @@ export function getProjectSettings() {
         const data = localStorage.getItem(SETTINGS_KEY);
         const parsed = data ? JSON.parse(data) : null;
         const settings = { ...DEFAULT_SETTINGS, ...(parsed || {}) };
+        settings.writingMode = normalizeWritingMode(settings.writingMode);
 
         // 从独立的 author-api-config 中读取 API 设置（防止从云同步覆盖或缺失）
         const apiDataRaw = localStorage.getItem('author-api-config');
@@ -517,13 +477,12 @@ export function deleteCharacter(id) {
 
 export function getWritingMode() {
     const settings = getProjectSettings();
-    return settings.writingMode || 'webnovel';
+    return normalizeWritingMode(settings.writingMode);
 }
 
 export function setWritingMode(mode) {
-    if (!WRITING_MODES[mode]) return;
     const settings = getProjectSettings();
-    settings.writingMode = mode;
+    settings.writingMode = normalizeWritingMode(mode);
     saveProjectSettings(settings);
 }
 

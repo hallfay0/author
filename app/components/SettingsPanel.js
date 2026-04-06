@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Library, KeyRound, Settings, BookOpen, User, MapPin, Globe, Gem,
     ClipboardList, Ruler, Upload, Download, Trash2, X, Maximize2, Minimize2,
     FileText, Sparkles, Search, Coins, Plug, Radio, RefreshCw, CheckCircle2,
     XCircle, AlertTriangle, Globe2, Shuffle, Eye, EyeOff, Ban, Pencil, FolderOpen,
-    Bell, RotateCcw, Monitor, CircleDot, Smartphone, Clapperboard,
+    Bell, RotateCcw, Monitor, CircleDot,
     Heart, Star, Shield, Zap, Feather, Compass, Flag, Tag, Layers,
     Bookmark, Crown, Flame, Lightbulb, Music, Palette, Sword, Target,
     Moon, Sun, Cloud, CloudOff, TreePine, Mountain, Waves, Building, Car,
-    Plus
+    Plus, Image as ImageIcon
 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import {
@@ -21,9 +21,6 @@ import {
     addSettingsNode,
     updateSettingsNode,
     deleteSettingsNode,
-    WRITING_MODES,
-    getWritingMode,
-    setWritingMode,
     saveSettingsNodes,
     getActiveWorkId,
     setActiveWorkId,
@@ -36,6 +33,7 @@ import {
     setModelParams,
     getModelParams,
     getProviderInstances,
+    getWritingMode,
 } from '../lib/settings';
 import SettingsTree from './SettingsTree';
 import { useI18n } from '../lib/useI18n';
@@ -415,10 +413,11 @@ export default function SettingsPanel() {
                 // 恢复项目设置
                 const restorePS = () => {
                     if (data.writingMode) {
+                        const nextWritingMode = WRITING_MODES[data.writingMode] ? data.writingMode : 'webnovel';
                         const ps = getProjectSettings();
-                        ps.writingMode = data.writingMode;
+                        ps.writingMode = nextWritingMode;
                         saveProjectSettings(ps); setSettings(ps);
-                        setWritingModeState(data.writingMode); setWritingMode(data.writingMode);
+                        setWritingModeState(nextWritingMode); setWritingMode(nextWritingMode);
                     }
                 };
 
@@ -1305,8 +1304,278 @@ export const PROVIDERS = [
 ];
 
 function PreferencesForm() {
-    const { language, setLanguage, visualTheme, setVisualTheme, sidebarPushMode, setSidebarPushMode, aiSidebarPushMode, setAiSidebarPushMode } = useAppStore();
+    const {
+        language,
+        setLanguage,
+        visualTheme,
+        setVisualTheme,
+        writingBackground,
+        setWritingBackground,
+        sidebarPushMode,
+        setSidebarPushMode,
+        aiSidebarPushMode,
+        setAiSidebarPushMode,
+    } = useAppStore();
     const { t } = useI18n();
+
+    const normalizeBackgroundLayer = (value) => {
+        if (!value || typeof value !== 'object') return { type: 'color', color: '', image: '', size: 'cover' };
+        const image = typeof value.image === 'string' ? value.image : '';
+        const size = ['cover', 'contain', '100% auto'].includes(value.size) ? value.size : 'cover';
+        return {
+            type: value.type === 'image' && image ? 'image' : 'color',
+            color: typeof value.color === 'string' ? value.color : '',
+            image,
+            size,
+        };
+    };
+
+    const normalizeDraftBackground = (value) => {
+        if (!value || typeof value !== 'object') {
+            return {
+                canvas: normalizeBackgroundLayer(),
+                page: normalizeBackgroundLayer(),
+            };
+        }
+        if ('type' in value || 'color' in value || 'image' in value) {
+            return {
+                canvas: normalizeBackgroundLayer(value),
+                page: normalizeBackgroundLayer(),
+            };
+        }
+        return {
+            canvas: normalizeBackgroundLayer(value.canvas),
+            page: normalizeBackgroundLayer(value.page),
+        };
+    };
+
+    const [draftBackground, setDraftBackground] = useState(() => normalizeDraftBackground(writingBackground));
+    const backgroundCommitTimerRef = useRef(null);
+
+    useEffect(() => {
+        setDraftBackground(normalizeDraftBackground(writingBackground));
+    }, [writingBackground]);
+
+    useEffect(() => {
+        return () => {
+            if (backgroundCommitTimerRef.current) clearTimeout(backgroundCommitTimerRef.current);
+        };
+    }, []);
+
+    const commitBackground = (nextBackground) => {
+        if (backgroundCommitTimerRef.current) clearTimeout(backgroundCommitTimerRef.current);
+        setWritingBackground(normalizeDraftBackground(nextBackground));
+    };
+
+    const scheduleBackgroundCommit = (nextBackground, delay = 180) => {
+        if (backgroundCommitTimerRef.current) clearTimeout(backgroundCommitTimerRef.current);
+        backgroundCommitTimerRef.current = setTimeout(() => {
+            setWritingBackground(normalizeDraftBackground(nextBackground));
+            backgroundCommitTimerRef.current = null;
+        }, delay);
+    };
+
+    const updateBackgroundLayer = (layerKey, updater, options = {}) => {
+        const normalized = normalizeDraftBackground(draftBackground);
+        const currentLayer = normalized[layerKey] || normalizeBackgroundLayer();
+        const nextLayer = normalizeBackgroundLayer(typeof updater === 'function' ? updater(currentLayer) : updater);
+        const nextBackground = {
+            ...normalized,
+            [layerKey]: nextLayer,
+        };
+        setDraftBackground(nextBackground);
+        if (options.commit === 'immediate') {
+            commitBackground(nextBackground);
+        } else if (options.commit === 'debounced') {
+            scheduleBackgroundCommit(nextBackground, options.delay);
+        }
+    };
+
+    const isHexColor = (value) => /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
+
+    const handleBackgroundTypeChange = (layerKey, type) => {
+        updateBackgroundLayer(layerKey, (layer) => ({ ...layer, type }), { commit: 'immediate' });
+    };
+
+    const handleBackgroundColorInput = (layerKey, color) => {
+        updateBackgroundLayer(layerKey, (layer) => ({ ...layer, type: 'color', color }), { commit: isHexColor(color) ? 'debounced' : undefined });
+    };
+
+    const handleBackgroundColorCommit = (layerKey) => {
+        const color = draftBackground?.[layerKey]?.color || '';
+        if (color === '' || isHexColor(color)) {
+            updateBackgroundLayer(layerKey, (layer) => ({ ...layer, type: 'color' }), { commit: 'immediate' });
+        }
+    };
+
+    const handleBackgroundImageSelect = (layerKey, event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === 'string' ? reader.result : '';
+            if (!result) return;
+            updateBackgroundLayer(layerKey, (layer) => ({ ...layer, type: 'image', color: '', image: result }), { commit: 'immediate' });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleClearBackgroundImage = (layerKey) => {
+        updateBackgroundLayer(layerKey, (layer) => ({ ...layer, type: 'color', image: '' }), { commit: 'immediate' });
+    };
+
+    const handleBackgroundSizeChange = (layerKey, size) => {
+        updateBackgroundLayer(layerKey, (layer) => ({ ...layer, size }), { commit: 'immediate' });
+    };
+
+    const handleResetBackground = () => {
+        const nextBackground = normalizeDraftBackground();
+        setDraftBackground(nextBackground);
+        commitBackground(nextBackground);
+    };
+
+    const backgroundSizeOptions = [
+        { value: 'cover', label: t('preferences.backgroundSizeCover') },
+        { value: 'contain', label: t('preferences.backgroundSizeContain') },
+        { value: '100% auto', label: t('preferences.backgroundSizeFitWidth') },
+    ];
+
+    const canvasPreviewBackground = draftBackground?.canvas?.type === 'image' && draftBackground?.canvas?.image
+        ? `url("${draftBackground.canvas.image}") center / ${draftBackground.canvas.size || 'cover'} no-repeat`
+        : (draftBackground?.canvas?.color || 'var(--bg-canvas)');
+
+    const pagePreviewBackground = draftBackground?.page?.type === 'image' && draftBackground?.page?.image
+        ? `url("${draftBackground.page.image}") center / ${draftBackground.page.size || 'cover'} no-repeat`
+        : (draftBackground?.page?.color || 'var(--bg-editor)');
+
+    const renderBackgroundLayerCard = (layerKey, label, description) => {
+        const layer = draftBackground?.[layerKey] || normalizeBackgroundLayer();
+        const imageReadyText = layerKey === 'canvas'
+            ? t('preferences.backgroundImageReady')
+            : t('preferences.backgroundPageImageReady');
+        const imageEmptyText = layerKey === 'canvas'
+            ? t('preferences.backgroundImageEmpty')
+            : t('preferences.backgroundPageImageEmpty');
+
+        return (
+            <div style={{
+                border: '1px solid var(--border-light)',
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--bg-primary)',
+                padding: 16,
+                boxShadow: 'var(--shadow-sm)'
+            }}>
+                <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{label}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>{description}</div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                    <button style={modeBtnStyle(layer.type === 'color')} onClick={() => handleBackgroundTypeChange(layerKey, 'color')}>
+                        <div style={{ fontSize: 13, fontWeight: layer.type === 'color' ? 600 : 400, color: layer.type === 'color' ? 'var(--accent)' : 'var(--text-primary)', marginBottom: 4 }}>
+                            {t('preferences.backgroundModeColor')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('preferences.backgroundModeColorDesc')}</div>
+                    </button>
+                    <button style={modeBtnStyle(layer.type === 'image')} onClick={() => handleBackgroundTypeChange(layerKey, 'image')}>
+                        <div style={{ fontSize: 13, fontWeight: layer.type === 'image' ? 600 : 400, color: layer.type === 'image' ? 'var(--accent)' : 'var(--text-primary)', marginBottom: 4 }}>
+                            {t('preferences.backgroundModeImage')}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('preferences.backgroundModeImageDesc')}</div>
+                    </button>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('preferences.backgroundColor')}</div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <input
+                            type="color"
+                            value={isHexColor(layer.color) ? layer.color : '#e8e4df'}
+                            onChange={e => handleBackgroundColorInput(layerKey, e.target.value)}
+                            onMouseUp={() => handleBackgroundColorCommit(layerKey)}
+                            onTouchEnd={() => handleBackgroundColorCommit(layerKey)}
+                            style={{ width: 44, height: 36, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        />
+                        <input
+                            type="text"
+                            value={layer.color}
+                            onChange={e => handleBackgroundColorInput(layerKey, e.target.value)}
+                            onBlur={() => handleBackgroundColorCommit(layerKey)}
+                            placeholder={t('preferences.backgroundColorPlaceholder')}
+                            style={{
+                                flex: 1,
+                                padding: '10px 12px',
+                                background: 'var(--bg-card)',
+                                border: '1px solid var(--border-light)',
+                                borderRadius: 'var(--radius-md)',
+                                color: 'var(--text-primary)',
+                                fontSize: 13,
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('preferences.backgroundImage')}</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        <label style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            padding: '9px 12px', borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-light)', background: 'var(--bg-card)',
+                            cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)'
+                        }}>
+                            <Upload size={14} />
+                            <span>{t('preferences.backgroundChooseImage')}</span>
+                            <input type="file" accept="image/*" onChange={(event) => handleBackgroundImageSelect(layerKey, event)} style={{ display: 'none' }} />
+                        </label>
+                        {layer.image && (
+                            <button
+                                onClick={() => handleClearBackgroundImage(layerKey)}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '9px 12px', borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border-light)', background: 'var(--bg-card)',
+                                    cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)'
+                                }}
+                            >
+                                <Trash2 size={14} />
+                                <span>{t('preferences.backgroundClearImage')}</span>
+                            </button>
+                        )}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                        {layer.image ? imageReadyText : imageEmptyText}
+                    </div>
+                </div>
+
+                <div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('preferences.backgroundSizeLabel')}</div>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {backgroundSizeOptions.map((option) => (
+                            <button
+                                key={option.value}
+                                style={{
+                                    padding: '9px 12px',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: layer.size === option.value ? '2px solid var(--accent)' : '1px solid var(--border-light)',
+                                    background: layer.size === option.value ? 'var(--accent-light)' : 'var(--bg-card)',
+                                    cursor: 'pointer',
+                                    fontSize: 13,
+                                    color: layer.size === option.value ? 'var(--accent)' : 'var(--text-primary)',
+                                    fontWeight: layer.size === option.value ? 600 : 400,
+                                }}
+                                onClick={() => handleBackgroundSizeChange(layerKey, option.value)}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     // ---- 自定义提示词 ----
     const [customPrompt, setCustomPrompt] = useState('');
@@ -1321,7 +1590,6 @@ function PreferencesForm() {
 
     const handlePromptChange = (value) => {
         setCustomPrompt(value);
-        // 500ms 防抖保存
         if (promptSaveTimer) clearTimeout(promptSaveTimer);
         const timer = setTimeout(() => {
             const settings = getProjectSettings();
@@ -1347,39 +1615,23 @@ function PreferencesForm() {
         boxShadow: active ? '0 2px 8px var(--accent-glow)' : 'var(--shadow-sm)',
     });
 
-    const [writingModeState, setWritingModeLocalState] = useState(getWritingMode());
-    const { setWritingMode: setGlobalWritingMode } = useAppStore();
+    const modeBtnStyle = (active) => ({
+        flex: 1,
+        padding: '12px 14px',
+        border: active ? '2px solid var(--accent)' : '1px solid var(--border-light)',
+        borderRadius: 'var(--radius-md)',
+        background: active ? 'var(--accent-light)' : 'var(--bg-primary)',
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'all 0.15s',
+        boxShadow: active ? '0 2px 8px var(--accent-glow)' : 'var(--shadow-sm)',
+    });
 
     return (
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
                 {t('preferences.intro')}
             </p>
-
-
-            {/* 写作模式选择器 */}
-            <div style={{ marginBottom: 28 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 12 }}>写作模式</label>
-                <div style={{ display: 'flex', gap: 10 }}>
-                    {Object.values(WRITING_MODES).map(m => (
-                        <button
-                            key={m.key}
-                            className={`writing-mode-card ${writingModeState === m.key ? 'active' : ''}`}
-                            style={{
-                                border: writingModeState === m.key ? `2px solid ${m.color}` : '1px solid var(--border-light)',
-                                background: writingModeState === m.key ? `${m.color}10` : 'var(--bg-primary)',
-                            }}
-                            onClick={() => { setWritingModeLocalState(m.key); setWritingMode(m.key); setGlobalWritingMode(m.key); }}
-                        >
-                            <div style={{ fontSize: 18, marginBottom: 4 }}>
-                                {m.icon === 'smartphone' ? <Smartphone size={18} /> : m.icon === 'book-open' ? <BookOpen size={18} /> : m.icon === 'clapperboard' ? <Clapperboard size={18} /> : null}
-                            </div>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: writingModeState === m.key ? m.color : 'var(--text-primary)', marginBottom: 2 }}>{m.label}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{m.desc}</div>
-                        </button>
-                    ))}
-                </div>
-            </div>
 
             <div style={{ marginBottom: 28 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 12 }}>{t('preferences.langLabel')}</label>
@@ -1430,11 +1682,75 @@ function PreferencesForm() {
                 </div>
             </div>
 
-            {/* 布局模式 */}
+            <div style={{ marginBottom: 28 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                        <ImageIcon size={15} />
+                        <span>{t('preferences.backgroundLabel')}</span>
+                    </label>
+                    <button
+                        onClick={handleResetBackground}
+                        style={{
+                            background: 'none', border: '1px solid var(--border-light)',
+                            borderRadius: 'var(--radius-sm)', padding: '3px 10px',
+                            cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)'
+                        }}
+                    >
+                        {t('preferences.backgroundReset')}
+                    </button>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, lineHeight: 1.6 }}>
+                    {t('preferences.backgroundDesc')}
+                </div>
+
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) 220px',
+                    gap: 16,
+                    alignItems: 'start'
+                }}>
+                    <div style={{ display: 'grid', gap: 16 }}>
+                        {renderBackgroundLayerCard('canvas', t('preferences.backgroundCanvasLabel'), t('preferences.backgroundCanvasDesc'))}
+                        {renderBackgroundLayerCard('page', t('preferences.backgroundPageLabel'), t('preferences.backgroundPageDesc'))}
+                    </div>
+
+                    <div style={{
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--bg-primary)',
+                        padding: 14,
+                        boxShadow: 'var(--shadow-sm)'
+                    }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>{t('preferences.backgroundPreview')}</div>
+                        <div style={{
+                            height: 220,
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border-light)',
+                            background: canvasPreviewBackground,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <div style={{
+                                width: 116,
+                                height: 160,
+                                borderRadius: 4,
+                                background: pagePreviewBackground,
+                                backgroundPosition: 'center',
+                                backgroundRepeat: 'no-repeat',
+                                border: '1px solid var(--border-light)',
+                                boxShadow: 'var(--shadow-page)'
+                            }} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div style={{ marginBottom: 24 }}>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 16 }}>{t('preferences.layoutLabel')}</label>
 
-                {/* 左侧章节列表 */}
                 <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('preferences.sidebarLayoutLabel')}</div>
                     <div style={{ display: 'flex', gap: 10 }}>
@@ -1453,7 +1769,6 @@ function PreferencesForm() {
                     </div>
                 </div>
 
-                {/* 右侧 AI 助手 */}
                 <div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>{t('preferences.aiSidebarLayoutLabel')}</div>
                     <div style={{ display: 'flex', gap: 10 }}>
@@ -1473,7 +1788,6 @@ function PreferencesForm() {
                 </div>
             </div>
 
-            {/* 自定义系统提示词 */}
             <div style={{ marginBottom: 24 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                     <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>

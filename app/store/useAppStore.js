@@ -2,6 +2,73 @@ import { create } from 'zustand';
 import { useRef, useState, useEffect } from 'react';
 import { persistSet } from '../lib/persistence';
 
+const DEFAULT_BACKGROUND_LAYER = {
+    type: 'color',
+    color: '',
+    image: '',
+    size: 'cover',
+};
+
+const DEFAULT_WRITING_BACKGROUND = {
+    canvas: { ...DEFAULT_BACKGROUND_LAYER },
+    page: { ...DEFAULT_BACKGROUND_LAYER },
+};
+
+function normalizeBackgroundLayer(value) {
+    if (!value || typeof value !== 'object') return { ...DEFAULT_BACKGROUND_LAYER };
+    const image = typeof value.image === 'string' ? value.image : '';
+    const size = ['cover', 'contain', '100% auto'].includes(value.size) ? value.size : 'cover';
+    return {
+        type: value.type === 'image' && image ? 'image' : 'color',
+        color: typeof value.color === 'string' ? value.color : '',
+        image,
+        size,
+    };
+}
+
+function normalizeWritingBackground(value) {
+    if (!value || typeof value !== 'object') return {
+        canvas: { ...DEFAULT_WRITING_BACKGROUND.canvas },
+        page: { ...DEFAULT_WRITING_BACKGROUND.page },
+    };
+
+    // 兼容旧结构：{ type, color, image }
+    if ('type' in value || 'color' in value || 'image' in value) {
+        return {
+            canvas: normalizeBackgroundLayer(value),
+            page: { ...DEFAULT_WRITING_BACKGROUND.page },
+        };
+    }
+
+    return {
+        canvas: normalizeBackgroundLayer(value.canvas),
+        page: normalizeBackgroundLayer(value.page),
+    };
+}
+
+function loadWritingBackground() {
+    if (typeof window === 'undefined') return normalizeWritingBackground();
+    try {
+        const raw = localStorage.getItem('author-writing-background');
+        if (!raw) return normalizeWritingBackground();
+        return normalizeWritingBackground(JSON.parse(raw));
+    } catch {
+        return normalizeWritingBackground();
+    }
+}
+
+function applyWritingBackground(background) {
+    if (typeof document === 'undefined') return;
+    const normalized = normalizeWritingBackground(background);
+    const rootStyle = document.documentElement.style;
+    rootStyle.setProperty('--author-writing-bg', normalized.canvas.color || 'var(--bg-canvas)');
+    rootStyle.setProperty('--author-writing-bg-image', normalized.canvas.type === 'image' && normalized.canvas.image ? `url("${normalized.canvas.image}")` : 'none');
+    rootStyle.setProperty('--author-writing-bg-size', normalized.canvas.size || 'cover');
+    rootStyle.setProperty('--author-page-bg', normalized.page.color || 'var(--bg-editor)');
+    rootStyle.setProperty('--author-page-bg-image', normalized.page.type === 'image' && normalized.page.image ? `url("${normalized.page.image}")` : 'none');
+    rootStyle.setProperty('--author-page-bg-size', normalized.page.size || 'cover');
+}
+
 // ============================================================
 // 内部 store
 // ============================================================
@@ -95,6 +162,17 @@ const store = create((set, get) => ({
             persistSet('author-visual', vTheme).catch(() => { });
         }
         return { visualTheme: vTheme };
+    }),
+
+    writingBackground: loadWritingBackground(),
+    setWritingBackground: (background) => set(() => {
+        const nextBackground = normalizeWritingBackground(background);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('author-writing-background', JSON.stringify(nextBackground));
+            persistSet('author-writing-background', nextBackground).catch(() => { });
+            applyWritingBackground(nextBackground);
+        }
+        return { writingBackground: nextBackground };
     }),
 
     startTour: false,
