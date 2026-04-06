@@ -1,1 +1,1 @@
-修复外置搜索自定义地址缺失 | Fix missing custom URL for external search tools
+v1.0.0 本地化版本首发
