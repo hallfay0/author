@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { useRef, useState, useEffect } from 'react';
 import { persistSet } from '../lib/persistence';
 
 const DEFAULT_BACKGROUND_LAYER = {
@@ -240,48 +239,8 @@ const store = create((set, get) => ({
 //   chapters 变化 → Sidebar 重渲染
 // ============================================================
 export function useAppStore(selector) {
-    // 手动 selector 模式 — 直接代理到 zustand
     if (selector) return store(selector);
-
-    // -- 自动追踪模式 --
-    const [, forceRender] = useState(0);
-    const accessedKeysRef = useRef(new Set());
-    const proxyRef = useRef(null);
-    const stateRef = useRef(store.getState());
-
-    // 订阅 store — 只在被追踪的属性变化时触发重渲染
-    useEffect(() => {
-        const unsub = store.subscribe((newState, prevState) => {
-            const keys = accessedKeysRef.current;
-            for (const key of keys) {
-                if (newState[key] !== prevState[key]) {
-                    stateRef.current = newState;
-                    forceRender(c => c + 1);
-                    return;
-                }
-            }
-            // 没有被追踪的属性变化 —— 不更新，不重渲染
-            stateRef.current = newState;
-        });
-        return unsub;
-    }, []);
-
-    // 每次 render 重新创建 Proxy 以追踪新的访问
-    const state = store.getState();
-    stateRef.current = state;
-    const accessed = new Set();
-    accessedKeysRef.current = accessed;
-
-    const proxy = new Proxy(state, {
-        get(target, prop) {
-            if (typeof prop === 'string') {
-                accessed.add(prop);
-            }
-            return target[prop];
-        },
-    });
-
-    return proxy;
+    return store();
 }
 
 // 保留静态方法供非组件代码使用

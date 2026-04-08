@@ -172,7 +172,7 @@ export default function Home() {
   const chatHistory = useMemo(() => activeSession?.messages || [], [activeSession]);
 
   // 加载指定作品的章节
-  const loadChaptersForWork = useCallback(async (workId) => {
+  const loadChaptersForWork = useCallback(async (workId, preferredChapterId = null) => {
     let saved = await getChapters(workId);
     // 自动修复：过滤掉损坏的章节数据
     if (Array.isArray(saved)) {
@@ -191,7 +191,12 @@ export default function Home() {
       setActiveChapterId(first.id);
     } else {
       setChapters(saved);
-      setActiveChapterId(saved[0].id);
+      const nextActiveChapterId = [
+        preferredChapterId,
+        useAppStore.getState().activeChapterId,
+        saved[0]?.id,
+      ].find((id) => id && saved.some((ch) => ch.id === id)) || null;
+      setActiveChapterId(nextActiveChapterId);
     }
   }, [t, setChapters, setActiveChapterId]);
 
@@ -209,7 +214,7 @@ export default function Home() {
         if (cancelled) return;
       }
 
-      await loadChaptersForWork(workId);
+      await loadChaptersForWork(workId, useAppStore.getState().activeChapterId);
       if (cancelled) return;
 
       const savedTheme = localStorage.getItem('author-theme') || 'light';
@@ -249,7 +254,7 @@ export default function Home() {
   useEffect(() => {
     if (prevWorkIdRef.current === activeWorkId) return;
     prevWorkIdRef.current = activeWorkId;
-    loadChaptersForWork(activeWorkId);
+    loadChaptersForWork(activeWorkId, useAppStore.getState().activeChapterId);
   }, [activeWorkId, loadChaptersForWork]);
 
   // 章节指纹 —— 当章节改名或拖动排序时会变化，触发上下文列表重建
